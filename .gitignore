@@ -6,6 +6,15 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+promptopt_*.log
+promptopt_*.txt
+temp_*.txt
+tmp_*.txt
+*_tmp.txt
+*_live.txt
+*_live.log
+*_sel_live.txt
+*_out_live.txt
 
 node_modules
 dist
@@ -22,3 +31,107 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*~
+
+# Backup and temporary files
+*.backup
+*.bak
+*.old
+*.orig
+*.save
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+*.venv
+**/mcp-env/
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.env
+.envrc
+secrets.txt
+api-keys.txt
+*.key
+*.pem
+*.p12
+
+# AutoHotkey compiled executables
+*.exe
+!tools/*.exe
+
+# PowerShell
+*.ps1xml
+*.pssc
+*.psm1
+
+# Output files
+output/
+out/
+*.out
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Documentation builds
+docs/_build/
+site/
+
+# Node
+package-lock.json
+yarn.lock
+
+# Project-specific
+crystal/frontend/package-lock.json
+crystal/pnpm-lock.yaml
+par/uv.lock
+crystal/screenshot/
+crystal/playwright-report/
+crystal/test-results/
+.gitignore
