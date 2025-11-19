@@ -89,11 +89,16 @@ if (!skipPickers && !args.Has("profile")) {
     ; This ensures any edits made by the user are respected.
     profile := "custom"
     model := selected.Model
-    pickerText := selected.CustomText
+    pickerSystem := selected.CustomText ; This is now just the System Prompt
+    pickerUser := selected.UserText     ; This is the (potentially edited) Input
     
     try {
         FileDelete(CUSTOM_PROMPT_FILE)
-        FileAppend(pickerText, CUSTOM_PROMPT_FILE, "UTF-8")
+        FileAppend(pickerSystem, CUSTOM_PROMPT_FILE, "UTF-8")
+        
+        ; Also update the selection file with the edited user text
+        FileDelete(SELECTION_FILE)
+        FileAppend(pickerUser, SELECTION_FILE, "UTF-8")
     }
     
     ; Flag to skip the CLI input box
@@ -107,13 +112,21 @@ if (profile = "custom") {
         g_CustomPrompts := LoadMetaPromptContents()
         g_CustomPromptIndex := 0
         
-        customInstructions := ShowCustomPromptInput()
-        if (customInstructions = "") {
-            ExitApp() ; User cancelled or empty
+        ; We pass the current input text to the dialog so it can be edited
+        currentInput := ""
+        try currentInput := FileRead(SELECTION_FILE, "UTF-8")
+        
+        customResult := ShowCustomPromptInput(currentInput)
+        if (!customResult) {
+            ExitApp() ; User cancelled
         }
+        
         try {
             FileDelete(CUSTOM_PROMPT_FILE)
-            FileAppend(customInstructions, CUSTOM_PROMPT_FILE, "UTF-8")
+            FileAppend(customResult.System, CUSTOM_PROMPT_FILE, "UTF-8")
+            
+            FileDelete(SELECTION_FILE)
+            FileAppend(customResult.User, SELECTION_FILE, "UTF-8")
         }
     }
 }
@@ -289,7 +302,7 @@ LoadMetaPromptContents() {
 
 ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     global g_DDLProfile
-    selection := {Profile: defaultProfile, Model: defaultModel, CustomText: ""}
+    selection := {Profile: defaultProfile, Model: defaultModel, CustomText: "", UserText: ""}
     
     guiPicker := Gui(, "PromptOpt Configuration")
     guiPicker.SetFont("s10", "Segoe UI")
@@ -300,9 +313,16 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     g_DDLProfile := guiPicker.Add("DropDownList", "w400 Choose1", profileList)
     g_DDLProfile.ItemsArray := profileList
     
-    ; Preview Box (Editable)
-    guiPicker.Add("Text",, "Prompt Preview (Editable):")
-    editPreview := guiPicker.Add("Edit", "w600 h300 vPreview -Wrap")
+    ; -- Split View: System Prompt (Instructions) vs User Input (Content) --
+    
+    ; 1. System Prompt
+    guiPicker.Add("Text",, "System Prompt / Instructions:")
+    editSystem := guiPicker.Add("Edit", "w600 h200 vSystemPrompt -Wrap")
+    
+    ; 2. User Input
+    guiPicker.Add("Text",, "User Input / Selection:")
+    editUser := guiPicker.Add("Edit", "w600 h150 vUserInput -Wrap")
+    editUser.Value := inputText ; Initialize with captured text
     
     ; Load prompts for preview
     prompts := LoadMetaPromptContents()
@@ -319,20 +339,11 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
             text := promptMap[selected]
         } else if (selected != "custom") {
             ; If not custom (and not in map), clear it. 
-            ; If it IS custom, we might want to preserve user edits?
-            ; But currently cycling resets it anyway unless we store custom state.
             text := "" 
         }
         
-        ; Append selection if we have a template (or even if blank?)
-        ; User requested appending to the prompt.
-        if (inputText != "") {
-            if (text != "")
-                text .= "`r`n`r`n"
-            text .= "<optimize-this-prompt>`r`n" . inputText . "`r`n</optimize-this-prompt>"
-        }
-        
-        editPreview.Value := text
+        ; Update only the System Prompt box
+        editSystem.Value := text
     }
     
     g_DDLProfile.OnEvent("Change", UpdatePreview)
@@ -361,14 +372,16 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     SubmitPicker() {
         selection.Profile := StrLower(g_DDLProfile.Text)
         selection.Model := ddlModel.Text
-        selection.CustomText := editPreview.Value
+        selection.CustomText := editSystem.Value
+        selection.UserText := editUser.Value
         isSubmitted := true
         guiPicker.Destroy()
     }
     
     CopyPreview() {
-        A_Clipboard := editPreview.Value
-        ToolTip("Copied Preview!")
+        ; Copy composite for debugging/testing
+        A_Clipboard := "--- SYSTEM ---`n" . editSystem.Value . "`n`n--- USER ---`n" . editUser.Value
+        ToolTip("Copied System+User!")
         SetTimer(() => ToolTip(), -1000)
     }
     
@@ -378,17 +391,20 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     return isSubmitted ? selection : false
 }
 
-ShowCustomPromptInput() {
+ShowCustomPromptInput(currentInput := "") {
     global g_EditCustom
-    customText := ""
     
     guiCustom := Gui(, "Custom Instructions")
     guiCustom.SetFont("s10", "Segoe UI")
     
     guiCustom.Add("Text",, "Enter custom instructions (Ctrl+Shift+Wheel to cycle templates):")
     
-    ; Multi-line edit
-    g_EditCustom := guiCustom.Add("Edit", "w500 h300 vCustomText")
+    ; System Prompt Edit
+    g_EditCustom := guiCustom.Add("Edit", "w600 h200 vCustomSystem")
+    
+    guiCustom.Add("Text",, "Edit User Input:")
+    editUser := guiCustom.Add("Edit", "w600 h150 vCustomUser")
+    editUser.Value := currentInput
     
     ; Buttons
     btnOK := guiCustom.Add("Button", "Default w100", "OK")
@@ -398,9 +414,11 @@ ShowCustomPromptInput() {
     btnCancel.OnEvent("Click", (*) => guiCustom.Destroy())
     
     isSubmitted := false
+    result := {System: "", User: ""}
     
     SubmitCustom() {
-        customText := g_EditCustom.Value
+        result.System := g_EditCustom.Value
+        result.User := editUser.Value
         isSubmitted := true
         guiCustom.Destroy()
     }
@@ -408,10 +426,22 @@ ShowCustomPromptInput() {
     guiCustom.Show()
     WinWaitClose(guiCustom)
     g_EditCustom := ""
-    return isSubmitted ? customText : ""
+    return isSubmitted ? result : false
 }
 
 RunPromptOpt(mode, model, profile) {
+    ; Check for Insano Mode
+    isInsano := EnvGet("PROMPTOPT_INSANO") == "1"
+    contextFile := ""
+    
+    if (isInsano) {
+        contextFile := GetActiveFilePath()
+        if (contextFile) {
+            ToolTip("⚡ Insano Mode: Targeting " . contextFile)
+            SetTimer(() => ToolTip(), -2000)
+        }
+    }
+
     ; Build PowerShell command
     psScript := SCRIPT_DIR . "\promptopt.ps1"
     cmd := 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' . psScript . '"'
@@ -422,6 +452,10 @@ RunPromptOpt(mode, model, profile) {
     cmd .= ' -Model "' . model . '"'
     cmd .= ' -Profile "' . profile . '"'
     cmd .= ' -LogFile "' . LOG_FILE . '"'
+    
+    if (contextFile) {
+        cmd .= ' -ContextFilePath "' . contextFile . '"'
+    }
     
     if (profile = "custom") {
         cmd .= ' -CustomPromptFile "' . CUSTOM_PROMPT_FILE . '"'
@@ -440,10 +474,17 @@ RunPromptOpt(mode, model, profile) {
     btnOK := guiResult.Add("Button", "Default w100", "OK")
     btnCopy := guiResult.Add("Button", "x+10 w100", "Copy")
     
+    ; Relace Quick Apply Button
+    if (InStr(profile, "relace")) {
+        btnApply := guiResult.Add("Button", "x+10 w120", "⚡ Quick Apply")
+        btnApply.OnEvent("Click", (*) => RunRelaceApply(editResult.Value))
+    }
+    
     ; Event Handlers
     btnOK.OnEvent("Click", (*) => SaveAndClose())
     btnCopy.OnEvent("Click", (*) => CopyResult(editResult.Value))
-    guiResult.OnEvent("Escape", (*) => guiResult.Destroy())
+    guiResult.OnEvent("Escape", (*) => ExitScript())
+    guiResult.OnEvent("Close", (*) => ExitScript())
     
     guiResult.Show()
     
@@ -482,6 +523,16 @@ RunPromptOpt(mode, model, profile) {
                         try {
                             finalContent := FileRead(OUTPUT_FILE, "UTF-8")
                             if (finalContent != "" && finalContent != "Initializing...") {
+                                
+                                ; INSANO MODE: Auto-Apply if JSON
+                                if (isInsano && IsJson(finalContent)) {
+                                    editResult.Value := finalContent
+                                    ToolTip("⚡ Insano Mode: Applying...")
+                                    RunRelaceApply(finalContent, true) ; true = silent
+                                    ExitScript()
+                                    return
+                                }
+
                                 editResult.Value := finalContent
                                 SetTimer(CheckOutput, 0) ; Stop monitoring
                                 ToolTip("Complete")
@@ -552,14 +603,56 @@ RunPromptOpt(mode, model, profile) {
         A_Clipboard := editResult.Value
         ToolTip("Saved to Clipboard")
         SetTimer(() => ToolTip(), -1000)
-        Sleep(100)
+        Sleep(500)
+        ExitScript()
+    }
+    
+    ExitScript() {
         guiResult.Destroy()
+        ExitApp()
     }
     
     CopyResult(text) {
         A_Clipboard := text
         ToolTip("Copied!")
         SetTimer(() => ToolTip(), -1000)
+    }
+    
+    RunRelaceApply(jsonContent, silent := false) {
+        ; Save to temp file for the python tool
+        tempJson := A_Temp . "\relace_payload_" . A_TickCount . ".json"
+        try FileDelete(tempJson)
+        try FileAppend(jsonContent, tempJson, "UTF-8")
+        
+        toolScript := PARENT_DIR . "\tools\relace_apply.py"
+        
+        if (!FileExist(toolScript)) {
+            MsgBox("Error: Tool script not found at:`n" . toolScript)
+            return
+        }
+        
+        if (silent) {
+            ; Silent execution for Insano Mode
+            RunWait(A_ComSpec . ' /c python "' . toolScript . '" "' . tempJson . '" > "' . tempJson . '.log" 2>&1',, "Hide")
+            
+            ; Check log for success/error
+            try {
+                logContent := FileRead(tempJson . ".log", "UTF-8")
+                if (InStr(logContent, "Applied code changes") || InStr(logContent, "Created new file")) {
+                    ToolTip("⚡ Insano Apply: Success!")
+                    SoundBeep(1000, 150)
+                } else {
+                    ToolTip("❌ Insano Apply Failed: Check log")
+                    SoundBeep(500, 300)
+                    ; Show error if failed
+                    MsgBox("Insano Apply Failed:`n" . logContent)
+                }
+                SetTimer(() => ToolTip(), -2000)
+            }
+        } else {
+            ; Execute in a new window so user can see output/errors
+            Run(A_ComSpec . ' /c python "' . toolScript . '" "' . tempJson . '" & pause')
+        }
     }
 }
 
@@ -602,4 +695,47 @@ GetFileSize(filePath) {
         return 0
     }
     return 0
+}
+
+; ====================================================================
+; INSANO MODE HELPERS
+; ====================================================================
+
+GetActiveFilePath() {
+    try {
+        ; Get active window title
+        title := WinGetTitle("A")
+        
+        ; Check for Notepad
+        if (InStr(title, "- Notepad")) {
+            ; Extract filename (simplified)
+            ; Notepad title format: "*filename.txt - Notepad" or "filename.txt - Notepad"
+            filename := RegExReplace(title, " - Notepad.*$", "")
+            filename := RegExReplace(filename, "^\*", "") ; Remove unsaved asterisk
+            
+            ; If it's a full path, return it
+            if (InStr(filename, ":\")) {
+                return filename
+            }
+            
+            ; If it's just a filename, we might not be able to resolve it easily without more context
+            ; But we can return it as a hint
+            return filename
+        }
+        
+        ; VS Code (often puts path in title or we can't get it easily without COM/ACC)
+        ; For now, focus on Notepad as requested
+    }
+    return ""
+}
+
+IsJson(str) {
+    try {
+        ; Simple check: starts with { and ends with }
+        trimmed := Trim(str)
+        if (SubStr(trimmed, 1, 1) == "{" && SubStr(trimmed, -1) == "}") {
+            return true
+        }
+    }
+    return false
 }

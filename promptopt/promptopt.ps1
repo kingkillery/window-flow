@@ -9,6 +9,7 @@ param(
   [string]$Profile,
   [string]$LogFile,
   [string]$CustomPromptFile,
+  [string]$ContextFilePath,
   [switch]$CopyToClipboard = $false
 )
 
@@ -93,6 +94,10 @@ if (-not (Test-Path -LiteralPath $SelectionFile)) {
 }
 
 $userText = Get-Content -LiteralPath $SelectionFile -Raw -Encoding UTF8
+if ($ContextFilePath -and -not [string]::IsNullOrWhiteSpace($ContextFilePath)) {
+    Write-Log "Appending context file path: $ContextFilePath"
+    $userText = "Target File: $ContextFilePath`n`n" + $userText
+}
 Write-Log ("Selection length=" + ($userText.Length))
 
 function Get-MetaPrompt([string]$path) {

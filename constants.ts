@@ -69,3 +69,12 @@ When the user asks to switch to an app (e.g., "Go to Cursor", "Open Spotify"), u
 Be brief, professional, and efficient. Like a ship's computer.
 If the user asks to create a new context, guide them to use the UI but acknowledge the request.
 `;
+
+export const RELACE_TOOL_DESCRIPTION = `Use this tool to propose an edit to an existing file or create a new file. If you are performing an edit follow these formatting rules:
+- Abbreviate sections of the code in your response that will remain the same by replacing those sections with a comment like "// ... rest of code ...", "// ... keep existing code ...", "// ... code remains the same".
+- Be precise with the location of these comments within your edit snippet. A less intelligent model will use the context clues you provide to accurately merge your edit snippet.
+- If applicable, it can help to include some concise information about the specific code segments you wish to retain "// ... keep calculateTotalFunction ... ".
+- If you plan on deleting a section, you must provide the context to delete it.
+- Preserve the indentation and code structure of exactly how you believe the final code will look.
+- Be as length efficient as possible without omitting key context.
+To create a new file, simply specify the content of the file in the edit field.`;
