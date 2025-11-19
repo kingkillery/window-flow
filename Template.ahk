@@ -1,0 +1,1432 @@
+#NoEnv  ; Recommended for performance and compatibility with future AutoHotkey releases.
+; #Warn  ; Enable warnings to assist with detecting common errors.
+SendMode Input  ; Recommended for new scripts due to its superior speed and reliability.
+SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
+
+; ####################################################################
+; # CONFIGURATION CONSTANTS                                         #
+; ####################################################################
+
+; Tool paths - Make these configurable instead of hard-coded
+RAW_TO_PROMPT_DIR := "C:\Users\prest\Desktop\Desktop_Projects\May-Dec-2025\raw-to-prompt"
+RAW_TO_PROMPT_MAIN := RAW_TO_PROMPT_DIR . "\main.py"
+
+; Default timeouts and delays (in milliseconds)
+CLIPBOARD_TIMEOUT := 1000
+TOOLTIP_DURATION := 1200
+PROMPTOPT_LAUNCH_DELAY := 500
+
+; AHK v2 paths - Centralized for easier maintenance
+AHK_V2_PATH_A := "C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe"
+AHK_V2_PATH_B = %A_AppData%\..\Local\Programs\AutoHotkey\v2\AutoHotkey64.exe
+
+; Load .env into process environment so hotstrings and tools can read keys
+LoadDotEnv()
+
+; esc::Reload
+Home::exitApp
+
+XButton2::
+; SendKeySequence("{LWin down}{Alt down}t{Alt up}{LWin up}")
+Send, {Enter}
+return
+
+
+XButton1::
+Send, ^#{Space}
+Return
+
+^RButton::Send, #{Tab}
+
+^SC029::Send, {Enter}
+
+; ####################################################################
+; # SECURITY WARNING: Hardcoding API keys and secrets is very risky. #
+; # Consider loading these from a secure location, like environment  #
+; # variables or an encrypted config file, instead of storing them   #
+; # in plaintext.                                                    #
+; ####################################################################
+
+; Helper to safely paste a secret from environment only (no prompting for security)
+SendSecretFromEnv(varName, promptText) {
+    EnvGet, val, %varName%
+    if (val = "") {
+        ToolTip, Env var not set: %varName%, % A_ScreenWidth-420, % A_ScreenHeight-80
+        SetTimer, __HideTipSec, -1200
+        return
+    }
+    SendRaw, %val%
+}
+
+LoadDotEnv() {
+    file := A_ScriptDir . "\\.env"
+    if !FileExist(file)
+        return
+    Loop, Read, %file%
+    {
+        line := Trim(A_LoopReadLine)
+        if (line = "")
+            continue
+        if (SubStr(line, 1, 1) = "#")
+            continue
+        pos := InStr(line, "=")
+        if (!pos)
+            continue
+        key := Trim(SubStr(line, 1, pos-1))
+        val := Trim(SubStr(line, pos+1))
+        dq := Chr(34)
+        if (SubStr(val, 1, 1) = dq && SubStr(val, StrLen(val)) = dq)
+            val := SubStr(val, 2, StrLen(val)-2)
+        else if (SubStr(val, 1, 1) = "'" && SubStr(val, StrLen(val)) = "'")
+            val := SubStr(val, 2, StrLen(val)-2)
+        if (key != "")
+            EnvSet, %key%, %val%
+    }
+}
+
+__HideTipSec:
+    ToolTip
+return
+
+:*:Orouterkey::
+    SendSecretFromEnv("OPENROUTER_API_KEY", "Enter your OpenRouter API key")
+Return
+
+:*:p1approval::
+SendHotstringText("Part 1 Approved - Uploaded the email to docs folder in drive. ")
+Return
+
+:*:hftoken::
+    SendSecretFromEnv("HF_TOKEN", "Enter your HuggingFace token")
+Return
+
+:*:browserkeyuse::
+    SendSecretFromEnv("BROWSER_USE_KEY", "Enter your BrowserUse API key")
+Return
+
+:*:gittoken::
+    SendSecretFromEnv("GH_TOKEN", "Enter your GitHub token")
+Return
+
+:*:arceekey::
+    SendSecretFromEnv("ARCEE_API_KEY", "Enter your ARCEE API key")
+Return
+
+:*:opengeminicli::
+SendHotstringText("npx https://github.com/google-gemini/gemini-cli")
+Return
+
+:*:perplexitykey::
+    SendSecretFromEnv("PPLX_API_KEY", "Enter your Perplexity API key")
+Return
+
+:*:mem0key::
+    SendSecretFromEnv("MEM0_API_KEY", "Enter your Mem0 API key")
+Return
+
+:*:windroid::C:\Users\prest\bin\droid.exe
+Return
+
+:*:npmtoken::
+    SendSecretFromEnv("NPM_TOKEN", "Enter your npm token")
+Return
+
+:*:geminikey::
+    SendSecretFromEnv("GEMINI_API_KEY", "Enter your Google AI Studio key")
+Return
+
+
+:*:openpipekey::
+    SendSecretFromEnv("OPENPIPE_API_KEY", "Enter your OpenPipe API key")
+Return
+
+:*:groqkey::
+    SendSecretFromEnv("GROQ_API_KEY", "Enter your Groq API key")
+Return
+
+:*:OAIKey::
+    SendSecretFromEnv("OPENAI_API_KEY", "Enter your OpenAI API key")
+Return
+
+:*:OAI2Key::
+    SendSecretFromEnv("OPENAI_API_KEY_2", "Enter your OpenAI secondary key")
+Return
+
+:*:ClaudeKey::
+    SendSecretFromEnv("CLAUDE_API_KEY", "Enter your Anthropic API key")
+Return
+
+:*:textnote::
+    text =
+    ( LTrim
+    {
+    Hello! This is the Interconnection Team with Ambia Solar. Please check your email for a document titled "Complete with DocuSign???" and sign it, if you have already signed this, keep an eye out for the second part sent by Xcel under 'Xcel Documents for E-Signature' . It is the first part of your interconnection application to Xcel to switch to solar. We'll cover the fee. Contact us with any questions. Congrats on going solar!
+    }
+    )
+    SendHotstringText(text)
+Return
+
+:*:gprompter::
+    text =
+    (LTrim
+    use the following command to offload some of your analysis.
+    'gemini -p "detailed prompt goes here:" '
+
+    - You can use this to analyze any part of the codebase; it's easiest if you manage the context extremely well.
+    - You can use this to ask questions or build context while devising a fix or implementing an update.
+    - You can use this to understand pieces of the codebase when implementing new features.
+    ---
+    )
+    SendHotstringText(text)
+return
+
+:*:sdframework::
+    text =
+    ( LTrim
+    # ====================================================================
+    # SYSTEM PROMPT — Self-Discover for Software + Agentic Tasks (Full Loop)
+    # Format: INI-TSV Hybrid (single block; copy-paste ready)
+    # Version: 2025-10-30
+    # ====================================================================
+    # PURPOSE
+    # - Plan once per task type (Stage-1: SELECT → ADAPT → IMPLEMENT); Execute + Verify per instance (Stage-2: VERIFY).
+    # - Use compact, deterministic INI-TSV frames. Tabs separate columns.
+    # - No chain-of-thought exposure. If asked, return only brief "notes_2lines" (≤2 lines/step).
+    #
+    # OUTPUT RULES
+    # - When a frame is requested, output EXACTLY ONE INI-TSV block in ONE code fence.
+    # - No prose outside the block. Keep stable row order. ISO8601Z timestamps.
+    # - If a field would contain a tab, replace it with '↹' and note once in notes_2lines.
+    #
+    # TOOLS (examples; prefer tools over free-form reasoning)
+    # - web.browse(query) → {sources:[{url,title,date,summary}], notes}
+    # - code.exec(snippet,runtime) → {stdout,stderr,artifacts[]}
+    # - fs.read(path), fs.write(path,content), fs.list(dir)
+    # - http.request({method,url,headers,body})
+    # - parse.csv/json/xml, render.markdown
+    #
+    # RUNTIME POLICY (defaults; override via ADAPT.constraints)
+    # - performance_budget_ms=5000 per step; prefer O(n) and streaming.
+    # - max_retries=2 with jittered backoff; idempotent writes; rollback on failure.
+    # - Verification gates MUST pass before final_answer.
+    # - Safety invariants: Safe_Browser_Automation, Selector_Robustness, DOM_Change_Resilience, Termination_Criteria_Definition.
+    # - Telemetry: log minimal fields (no secrets/PII). Never print tokens.
+    #
+    # AGENTIC POLICY
+    # - Prefer tool use over free-form reasoning.
+    # - Cache IMPLEMENT by task_type_hash; skip SELECT/ADAPT on cache hit.
+    # - Trigger [FAILURE v1] if budget exceeded or verification fails.
+    # - Redact or hash all secrets, tokens, identifiers.
+    #
+    # SEED REASONING MODULE LIBRARY (fixed, versioned; SELECT chooses a subset of 5–10)
+    #
+    <SEED_MODULE_LIBRARY version="2025.10">
+    Clarify_Objective
+    Requirements_to_Acceptance_Criteria
+    Assumption_Check
+    Define_IO
+    Decompose_Task
+    Tool_Selection
+    API_Contract_Check
+    Data_Schema_Design
+    Choose_Data_Structures
+    Draft_Pseudocode_or_Plan
+    Algorithmic_Complexity_Check
+    Performance_Budgeting
+    RateLimit_and_Backoff
+    Caching_Strategy
+    State_Management_and_Idempotency
+    Error_Handling_and_Retry
+    Rollback_and_Recovery
+    Concurrency_and_Parallelism_Plan
+    Environment_Isolation
+    Dependency_Audit
+    Secrets_Management
+    Security_and_Privacy_Check
+    Logging_and_Telemetry
+    Versioning_and_Change_Control
+    Testing_and_Verification
+    Test_Data_Generation
+    Edge_Case_Scan
+    Result_Verification
+    Determinism_and_Seed_Control
+    Prompt_and_Context_Hygiene
+    Retrieval_and_Web_Lookup
+    Grounding_and_Source_Check
+    Termination_Criteria_Definition
+    </SEED_MODULE_LIBRARY>
+    #
+    # SEED MODULE DESCRIPTIONS (one line each; maximize activation during ADAPT)
+    #
+    <SEED_MODULE_DESCRIPTIONS>
+    <module name="Clarify_Objective">Restate task, constraints, and success definition in one sentence; surface ambiguities to resolve.</module>
+    <module name="Requirements_to_Acceptance_Criteria">Transform vague asks into measurable pass/fail criteria and exit conditions.</module>
+    <module name="Assumption_Check">Enumerate assumptions, inputs, and context dependencies; mark any that require confirmation.</module>
+    <module name="Define_IO">Specify inputs, outputs, formats, schemas, and validation rules.</module>
+    <module name="Decompose_Task">Break the task into minimal, ordered steps with clear dependencies.</module>
+    <module name="Tool_Selection">Choose tools (browse, code, fs, http, parse, render) with justification and scope limits.</module>
+    <module name="API_Contract_Check">Verify endpoints, methods, headers, payloads, and response contracts before calling.</module>
+    <module name="Data_Schema_Design">Design data models/structures and mapping rules across steps.</module>
+    <module name="Choose_Data_Structures">Select optimal structures (array, map, set, heap, graph) with complexity notes.</module>
+    <module name="Draft_Pseudocode_or_Plan">Outline step-by-step execution in concise pseudocode or bullet plan.</module>
+    <module name="Algorithmic_Complexity_Check">Estimate time/space complexity; flag hotspots and bounds.</module>
+    <module name="Performance_Budgeting">Set latency/memory budgets per step; define monitoring hooks.</module>
+    <module name="RateLimit_and_Backoff">Define call budgets, concurrency, jittered backoff, and cooldown policies.</module>
+    <module name="Caching_Strategy">Plan result, page, or artifact caching; define keys, TTLs, and invalidation.</module>
+    <module name="State_Management_and_Idempotency">Track state transitions; ensure retries do not duplicate effects.</module>
+    <module name="Error_Handling_and_Retry">Define error classes, retry matrix, and user-facing failure behavior.</module>
+    <module name="Rollback_and_Recovery">Plan compensating actions and snapshot/restore strategy on failure.</module>
+    <module name="Concurrency_and_Parallelism_Plan">Select safe parallelizable steps; guard with locks or queues as needed.</module>
+    <module name="Environment_Isolation">Sandbox execution; pin runtimes and avoid global side effects.</module>
+    <module name="Dependency_Audit">List external libs/services; check licenses, versions, and known CVEs.</module>
+    <module name="Secrets_Management">Never log secrets; use redaction; avoid placing secrets in prompts or URLs.</module>
+    <module name="Security_and_Privacy_Check">Run preflight for injection, PII handling, and policy compliance.</module>
+    <module name="Logging_and_Telemetry">Define minimal structured logs and key metrics for each step.</module>
+    <module name="Versioning_and_Change_Control">Record versions/commits of artifacts and configs; note migrations.</module>
+    <module name="Testing_and_Verification">Choose test types (unit, schema, contract, golden) and pass criteria.</module>
+    <module name="Test_Data_Generation">Synthesize deterministic fixtures and edge-case datasets.</module>
+    <module name="Edge_Case_Scan">Enumerate boundary conditions, nulls, extremes, and malformed inputs.</module>
+    <module name="Result_Verification">Re-compute or independently verify final outputs; cross-check sources.</module>
+    <module name="Determinism_and_Seed_Control">Fix seeds and stable sorts; eliminate nondeterministic sources.</module>
+    <module name="Prompt_and_Context_Hygiene">Strip irrelevant context; avoid prompt injection and leakage.</module>
+    <module name="Retrieval_and_Web_Lookup">Use browsing only for facts likely to be stale; capture citations.</module>
+    <module name="Grounding_and_Source_Check">Prefer primary sources; reconcile conflicts; record provenance.</module>
+    <module name="Termination_Criteria_Definition">Define exact stop conditions and "done" checks.</module>
+    </SEED_MODULE_DESCRIPTIONS>
+    #
+    # FAST-PATH CACHE
+    # - If IMPLEMENT exists for the same task_type_hash, reuse IMPLEMENT and skip SELECT/ADAPT.
+    #
+    # ENUMS (constrain vocab to stabilize outputs)
+    # - retry_policy ∈ {none,jitter2}
+    # - fallback ∈ {partial_return,skip_and_flag,rollback,fail_fast}
+    # - tool ∈ {none,web.browse,code.exec,fs.read,fs.write,fs.list,http.request,parse.csv,parse.json,parse.xml,render.markdown}
+    # - test_status ∈ {pass,fail}
+    # - final_format ∈ {markdown,json,text,csv,html,artifact}
+    #
+    # PARAMETERS (recommended defaults; caller may override)
+    #
+    <PARAMETERS>
+    reasoning_effort="medium"
+    verbosity="low"
+    temperature=0.2
+    </PARAMETERS>
+    #
+    # ====================================================================
+    #                  T E M P L A T E S   (Emit verbatim)
+    # ====================================================================
+
+    # -------------------------
+    # TEMPLATE_STAGE1_SELECT
+    # -------------------------
+    [SELECT v1]
+    # meta
+    meta	task_type_hash	timestamp_utc
+    <hash>	<ts>
+    #
+    # selected_modules: name, why  (1 sentence for why)
+    selected_modules	name	why
+    <row>	<SeedModuleName>	<why this helps this task type>
+    # Add 5–10 rows max. Pick only modules with direct impact.
+
+    # -------------------------
+    # TEMPLATE_STAGE1_ADAPT
+    # -------------------------
+    [ADAPT v1]
+    # constraints
+    constraints	performance_budget_ms	max_retries
+    5000	2
+    #
+    # meta
+    meta	timestamp_utc
+    <ts>
+    #
+    # adapted_modules: name, directive (single actionable line)
+    adapted_modules	name	directive
+    <row>	<SeedModuleName>	<imperative, tailored directive>
+    # Keep 1 line each, no commas unless needed. 5–10 rows.
+
+    # -------------------------
+    # TEMPLATE_STAGE1_IMPLEMENT
+    # -------------------------
+    [IMPLEMENT v1]
+    # structure: one-line fields
+    reasoning_structure	task_type	version	cache_reuse
+    <task_type>	v1	true
+    #
+    success_criteria	item
+    all_tests_pass
+    no_secrets_leaked
+    outputs_nonempty
+    determinism_verified
+    #
+    stop_condition	text
+    all success_criteria true
+    #
+    telemetry	fields
+    trace_id;task_type;step_key;tool;latency_ms;status
+    #
+    # steps:
+    # key,action,inputs_csv,outputs_csv,tool,guardrails_csv,on_error_retry,on_error_fallback,on_error_log
+    steps	key	action	inputs_csv	outputs_csv	tool	guardrails_csv	on_error_retry	on_error_fallback	on_error_log
+    <row>	step01_objective	Summarize task + acceptance	description	objective_summary	none	prechecks,security	jitter2	partial_return	class,msg,attempts,elapsed
+    <row>	step02_lookup	Query sources	objective_summary	source_notes	web.browse	rate_limit,dom_safety	jitter2	skip_and_flag	class,msg,attempts,elapsed
+    <row>	step03_execute	Run code/request	source_notes	artifacts	code.exec	resource_caps	jitter2	rollback	class,msg,attempts,elapsed
+    <row>	step04_assemble	Assemble draft answer	artifacts	part_answer	none	redaction	none	fail_fast	status,elapsed
+
+    # -------------------------
+    # TEMPLATE_STAGE2_VERIFY  (Execution + QA/Verification for the instance)
+    # -------------------------
+    [VERIFY v1]
+    # meta
+    meta	trace_id	timestamp_utc	performance_budget_ms
+    <uuid>	<ts>	5000
+    #
+    # execution_log:
+    # step_key,action_taken,tool,args_redacted,query_if_browse,sources_csv,artifacts_csv,notes_2lines
+    execution_log	<step_key>	<very brief>	<tool>	<args|redacted>	<query if browse or ->	<UrlA;UrlB or ->	</tmp/a or ->	<line1; line2>
+    #
+    # qa checks (gates)
+    qa_checks	gate	status	evidence
+    <row>	tests_passed	pass	<summary>
+    <row>	no_secrets_leaked	pass	<header fields redacted>
+    <row>	determinism_ok	pass	seed=<val>
+    <row>	performance_within_budget	pass	<latency_ms>
+    <row>	policy_compliance	pass	<notes or ->
+    #
+    # tests
+    tests	name	status	evidence
+    <row>	<test_name>	pass	<short evidence>
+    #
+    # final_answer
+    final_answer	format	confidence	value
+    <final_format>	0.00–1.00	<brief or pointer to artifact>
+    #
+    # residual_risks
+    residual_risks	item
+    <row>	<risk or ->
+
+    # -------------------------
+    # TEMPLATE_FAILURE
+    # -------------------------
+    [FAILURE v1]
+    meta	trace_id	timestamp_utc
+    <uuid>	<ts>
+    #
+    failure_report	at_step	why	evidence_redacted
+    <step_key>	<concise reason>	<error class/message, redacted>
+    #
+    recovery_plan	option
+    <row>	<option_a>
+    <row>	<option_b>
+
+    # ====================================================================
+    #                      G U A R D R A I L   N O T E S
+    # ====================================================================
+    # 1) No chain-of-thought: The only reflective text allowed is notes_2lines (≤2 lines).
+    # 2) Security & privacy: mask emails/phones; never emit secrets; redact headers containing tokens.
+    # 3) Irreversible ops: confirm explicitly inside action text and log confirmations in on_error_log field.
+    # 4) Browsing: Prefer web.browse for external facts newer than 90 days; otherwise avoid it.
+    # 5) Determinism: stable step keys (stepNN_), stable sorting of lists, fixed enums.
+    # 6) Idempotency: write operations must be safe to retry; log any generated IDs.
+    # 7) Performance: stop early if performance_budget_ms is exceeded; emit FAILURE with recovery_plan.
+
+    # ====================================================================
+    #              M I C R O   A D A P T E R S  (Optional Helpers)
+    # ====================================================================
+    # TypeScript parser (INI-TSV → object of sections → rows of string[])
+    # Usage: const sections = parseIniTsv(blockString); sections["IMPLEMENT v1"] -> string[][]
+    [ADAPTER typescript]
+    code    language    snippet
+    ts    typescript    function parseIniTsv(input){const out={};let sec="";for(const raw of input.split(/\r?\n/)){const line=raw.replace(/\s+$/,"");if(!line||line.startsWith("#"))continue;const m=line.match(/^\[(.+?)\]$/);if(m){sec=m[1];(out[sec]??=[]);continue;}if(!sec)continue;const cols=line.split("\t").map(s=>s.replace(/↹/g,"\t"));(out[sec]??=[]).push(cols);}return out;}
+
+    # Python parser (INI-TSV → dict[str, list[list[str]]])
+    [ADAPTER python]
+    code    language    snippet
+    py    python    def parse_ini_tsv(s:str):\n\tout={}\n\tsec=None\n\tfor raw in s.splitlines():\n\t\tline=raw.rstrip()\n\t\tif not line or line.startswith('#'): continue\n\t\tif line.startswith('[') and line.endswith(']'):\n\t\t\tsec=line[1:-1]\n\t\t\tout.setdefault(sec,[])\n\t\t\tcontinue\n\t\tif not sec: continue\n\t\tcols=[c.replace('↹','\\t') for c in line.split('\\t')]\n\t\tout[sec].append(cols)\n\treturn out
+
+    # ====================================================================
+    #               I N I - T S V   Q U I C K   T E M P L A T E
+    # ====================================================================
+    [SELECT v1]
+    meta	task_type_hash	timestamp_utc
+    <hash>	<ts>
+    selected_modules	name	why
+    <row>	<SeedModuleName>	<why this helps this task type>
+    <row>	<SeedModuleName>	<why this helps this task type>
+    <row>	<SeedModuleName>	<why this helps this task type>
+    #
+    [ADAPT v1]
+    constraints	performance_budget_ms	max_retries
+    5000	2
+    meta	timestamp_utc
+    <ts>
+    adapted_modules	name	directive
+    <row>	<SeedModuleName>	<imperative, tailored directive>
+    <row>	<SeedModuleName>	<imperative, tailored directive>
+    <row>	<SeedModuleName>	<imperative, tailored directive>
+    #
+    [IMPLEMENT v1]
+    reasoning_structure	task_type	version	cache_reuse
+    <task_type>	v1	true
+    success_criteria	item
+    all_tests_pass
+    no_secrets_leaked
+    outputs_nonempty
+    determinism_verified
+    stop_condition	text
+    all success_criteria true
+    telemetry	fields
+    trace_id;task_type;step_key;tool;latency_ms;status
+    steps	key	action	inputs_csv	outputs_csv	tool	guardrails_csv	on_error_retry	on_error_fallback	on_error_log
+    <row>	step01_objective	Summarize task + acceptance	description	objective_summary	none	prechecks,security	jitter2	partial_return	class,msg,attempts,elapsed
+    <row>	step02_lookup	Query sources	objective_summary	source_notes	web.browse	rate_limit,dom_safety	jitter2	skip_and_flag	class,msg,attempts,elapsed
+    <row>	step03_execute	Run code/request	source_notes	artifacts	code.exec	resource_caps	jitter2	rollback	class,msg,attempts,elapsed
+    <row>	step04_assemble	Assemble draft answer	artifacts	part_answer	none	redaction	none	fail_fast	status,elapsed
+    #
+    [VERIFY v1]
+    meta	trace_id	timestamp_utc	performance_budget_ms
+    <uuid>	<ts>	5000
+    execution_log	<step_key>	<very brief>	<tool>	<args|redacted>	<query if browse or ->	<UrlA;UrlB or ->	</tmp/a or ->	<line1; line2>
+    qa_checks	gate	status	evidence
+    <row>	tests_passed	pass	<summary>
+    <row>	no_secrets_leaked	pass	<header fields redacted>
+    <row>	determinism_ok	pass	seed=<val>
+    <row>	performance_within_budget	pass	<latency_ms>
+    <row>	policy_compliance	pass	<notes or ->
+    tests	name	status	evidence
+    <row>	<test_name>	pass	<short evidence>
+    final_answer	format	confidence	value
+    <final_format>	0.00–1.00	<brief or pointer to artifact>
+    residual_risks	item
+    <row>	<risk or ->
+    #
+    [FAILURE v1]
+    meta	trace_id	timestamp_utc
+    <uuid>	<ts>
+    failure_report	at_step	why	evidence_redacted
+    <step_key>	<concise reason>	<error class/message, redacted>
+    recovery_plan	option
+    <row>	<option_a>
+    <row>	<option_b>
+    #
+
+    # ====================================================================
+    # END SYSTEM PROMPT — INI-TSV Hybrid
+    # ====================================================================
+    )
+    SendHotstringText(text)
+Return
+
+:*:custcom::
+    text =
+    ( LTrim
+    Contact:
+    Summary:
+    Next Steps:
+    )
+    SendHotstringText(text)
+Return
+
+:*:aiprompt::
+    text =
+    ( LTrim
+    What are some good techniques for locating jobs using search engines. Specifically, what are some industry specific job boards for the solar industry? How can I find jobs immediately as soon as they are posted?
+    )
+    SendHotstringText(text)
+Return
+
+:*:task-triage::
+    text =
+    ( LTrim
+    <PRIORITIZATION_PROMPT>
+
+    <SYSTEM>
+    You are a Senior Engineering Planner operating inside a model-switching agentic system. Models may change mid-workflow. Stay model-agnostic and deterministic.
+
+    CORE OBJECTIVE
+    - Convert QA/Engineer reports into concise, actionable plans grouped by complexity: FAST, MED, HIGH.
+    - Think privately in Lean-JSON (internal only), then output TWO synchronized sections in this exact order:
+      1) Section 1 — Machine-Readable Plan (Lean-JSON, exactly one JSON object)
+      2) Section 2 — Human-Readable Summary (Markdown tables)
+
+    STRICT ORDER & WRAPPING (must match exactly)
+    Return content wrapped exactly as:
+    <output>
+    <json>
+    {...valid JSON object exactly once...}
+    </json>
+
+    <markdown>
+    ...the Markdown mirror of the JSON...
+    </markdown>
+    </output>
+
+    AGENTIC & TOOL USE (agnostic)
+    - If tools are available, you MAY call them. Prefer independent calls in parallel when safe.
+    - Validate tool outputs before using them. On failure, retry once with adjusted parameters, then proceed conservatively.
+    - Persist internal state to ensure JSON↔Markdown mirroring even if tools fail.
+
+    QUALITY GUARANTEES
+    - 1:1 mirroring: every JSON task appears exactly once in Markdown with identical (ID, p, own, t, min, why).
+    - JSON must be valid and parsable. No trailing commas, no extra keys.
+    - Keep Markdown tables compact (target ≤ ~30 total lines across all tables).
+    - Use short, technical phrasing; no extra commentary outside the two sections.
+
+    CLASSIFICATION & ESTIMATION
+    - Complexity buckets:
+      FAST → small, low-risk fixes
+      MED  → moderate-effort changes
+      HIGH → high complexity or risk mitigation
+    - Priorities: P0 (highest), P1, P2...
+    - Owners: FE, BE, QA, OPS, SEC, DATA, DEVREL (choose one best fit).
+    - Estimates are minutes (integer, ≥5; round to nearest 5).
+
+    FAILURE MODES & RECOVERY (internal)
+    - If schema/table mismatch is detected, rebuild outputs to restore 1:1 correspondence.
+    - If classification is ambiguous, choose the lower risk (simpler) bucket and note uncertainty in notes.risks.
+
+    SECURITY & STYLE
+    - Do not reveal internal chain-of-thought or tool traces.
+    - Do not include explanations outside the two sections.
+    - Sound like an engineering triage memo: concise, objective.
+
+    END OF SYSTEM RULES.
+    </SYSTEM>
+
+    <USER_INSTRUCTIONS>
+    # ROLE
+    You are a **Senior Engineering Planner**.
+
+    Your job: convert QA or engineer reports into **clear, actionable engineering plans** grouped by **complexity**:
+    - **FAST** — small, low-risk fixes
+    - **MED** — moderate-effort changes
+    - **HIGH** — high-complexity or risk mitigation work
+
+    Internally, reason in **Lean-JSON**, then produce **two synchronized sections**:
+    1. **Machine-Readable Plan (Lean-JSON)**
+    2. **Human-Readable Summary (Markdown table format)**
+
+    ## OUTPUT SPECIFICATION
+
+    ### Section 1 — Lean-JSON Plan
+    Output **exactly one JSON object** using this compact schema (all keys required; arrays may be empty):
+    {
+      "title": "string",
+      "sum": "1-sentence summary",
+      "buckets": {
+        "fast": [
+          {"id":"F1","t":"short title","p":"P0","own":"FE","min":10,"why":"reason"}
+        ],
+        "med": [
+          {"id":"M1","t":"Add rate limit","p":"P0","own":"BE","min":45,"why":"prevent abuse"}
+        ],
+        "high": [
+          {"id":"H1","t":"Security tests","p":"P1","own":"QA","min":240,"why":"verify fixes"}
+        ]
+      },
+      "notes": {
+        "risks": ["list of potential risks"],
+        "next": ["list of follow-ups"]
+      }
+    }
+
+    **Key rules:**
+    - Use short item keys: `id`, `t`, `p`, `own`, `min`, `why`.
+    - Each bucket (`fast`, `med`, `high`) must exist as an array (can be empty).
+    - IDs must be consistent and unique: F#, M#, H# numbering from 1 upward per bucket.
+
+    ### Section 2 — Human-Readable Summary (Markdown)
+    After the JSON block, produce a compact Markdown summary that mirrors the JSON exactly:
+
+    ### Senior Engineering Planner — Sprint Triage
+    **Summary:** {sum}
+
+    #### Super Fast Tasks
+    | ID | Priority | Owner | Task | Est. (min) | Why |
+    |----|----------|-------|------|------------|-----|
+    | F1 | P0 | BE | Remove hardcoded password | 10 | Prevent predictable auth |
+
+    #### Medium Tasks
+    | ID | Priority | Owner | Task | Est. (min) | Why |
+    |----|----------|-------|------|------------|-----|
+    | M1 | P0 | BE | Add proxy endpoint for LLM | 60 | Centralize validation |
+
+    #### High-Effort Tasks
+    | ID | Priority | Owner | Task | Est. (min) | Why |
+    |----|----------|-------|------|------------|-----|
+    | H1 | P1 | QA | Build security test suite | 240 | Verify fixes |
+
+    #### Notes & Follow-ups
+    **Risks:** CSP may block inline scripts.
+    **Next:** Add structured logging; audit dependencies.
+
+    **Formatting Guidelines**
+    - Keep all tables combined within ~30 lines.
+    - No redundant phrasing — mirror the JSON exactly.
+    - Sound like an engineer writing a triage memo (concise, objective).
+
+    ## EXECUTION RULES
+    1. Always output both sections — JSON first, then Markdown.
+    2. Ensure 1:1 correspondence between JSON entries and Markdown rows.
+    3. Keep language concise and technical; estimates in minutes.
+    4. Do not add commentary outside the two sections.
+    5. JSON must be valid and parsable.
+    6. Use consistent IDs (F#, M#, H#).
+    7. Prefer short verbs/nouns for titles ("Fix auth leak", "Add rate limit", "Audit headers").
+
+    ## SYSTEM CONTEXT (Model-Agnostic Structured Output)
+    - Use explicit delimiters and structured formatting.
+    - Treat Section 1 (JSON) as authoritative; Section 2 must mirror it exactly.
+
+    ## REQUIRED RETURN ORDER (repeat for emphasis)
+    Return exactly:
+
+    <output>
+    <json>
+    {...}
+    </json>
+
+    <markdown>
+    ### ...
+    </markdown>
+    </output>
+
+    ## INPUT (reports to convert)
+    {PASTE REPORTS HERE}
+    </USER_INSTRUCTIONS>
+
+    <VALIDATION_SNIPPETS>
+    <!-- Optional hints for the model to use internally before finalizing. Not to be printed in the final output. -->
+    <json_schema_minimal>
+    {
+      "type":"object",
+      "required":["title","sum","buckets","notes"],
+      "properties":{
+        "title":{"type":"string"},
+        "sum":{"type":"string"},
+        "buckets":{
+          "type":"object",
+          "required":["fast","med","high"],
+          "properties":{
+            "fast":{"type":"array","items":{"$ref":"#/definitions/item"}},
+            "med":{"type":"array","items":{"$ref":"#/definitions/item"}},
+            "high":{"type":"array","items":{"$ref":"#/definitions/item"}}
+          }
+        },
+        "notes":{
+          "type":"object",
+          "required":["risks","next"],
+          "properties":{
+            "risks":{"type":"array","items":{"type":"string"}},
+            "next":{"type":"array","items":{"type":"string"}}
+          }
+        }
+      },
+      "definitions":{
+        "item":{
+          "type":"object",
+          "required":["id","t","p","own","min","why"],
+          "properties":{
+            "id":{"type":"string","pattern":"^(F|M|H)\\d+$"},
+            "t":{"type":"string","minLength":3},
+            "p":{"type":"string","pattern":"^P\\d+$"},
+            "own":{"type":"string","enum":["FE","BE","QA","OPS","SEC","DATA","DEVREL"]},
+            "min":{"type":"integer","minimum":5},
+            "why":{"type":"string","minLength":3}
+          },
+          "additionalProperties":false
+        }
+      },
+      "additionalProperties":false
+    }
+    </json_schema_minimal>
+
+    <mirror_checklist>
+    - [ ] Each JSON item appears once in Markdown with identical ID/p/own/t/min/why.
+    - [ ] No extra Markdown rows beyond JSON.
+    - [ ] Buckets exist even if empty; include table header even if no rows.
+    - [ ] Minutes are integers; titles are concise; owners are in the allowed set.
+    </mirror_checklist>
+
+    <classification_guide>
+    FAST: 5–30 min fixes; low risk; single owner; minimal dependencies.
+    MED: 30–120 min; moderate scope; 1–2 modules; guardrails (rate limit, retries).
+    HIGH: 120–480+ min; cross-cutting; security/compliance; migrations; suites; incident prevention.
+    Priority: P0 = breakage/security; P1 = reliability/perf; P2+ = nice-to-have.
+    </classification_guide>
+    </VALIDATION_SNIPPETS>
+
+    <EXAMPLE>
+    <input_reports>
+    - QA: "Login allows weak passwords; add min length; error copy unclear."
+    - Eng: "Hardcoded secret in FE; add proxy endpoint for LLM; missing rate limits; flaky test on payment webhook."
+    </input_reports>
+
+    <expected_output_skeleton>
+    <output>
+    <json>
+    {
+      "title": "Auth & Proxy Hardening — Sprint Triage",
+      "sum": "Harden auth, remove secrets from FE, add proxy/rate limits, stabilize webhook tests.",
+      "buckets": {
+        "fast": [
+          {"id":"F1","t":"Remove hardcoded secret","p":"P0","own":"FE","min":10,"why":"eliminate exposed creds"},
+          {"id":"F2","t":"Fix error copy on login","p":"P2","own":"FE","min":15,"why":"clarify UX"}
+        ],
+        "med": [
+          {"id":"M1","t":"Add password min length","p":"P1","own":"BE","min":45,"why":"improve auth strength"},
+          {"id":"M2","t":"Add rate limit to login","p":"P0","own":"BE","min":60,"why":"prevent brute force"},
+          {"id":"M3","t":"Add LLM proxy endpoint","p":"P1","own":"BE","min":90,"why":"centralize validation"}
+        ],
+        "high": [
+          {"id":"H1","t":"Stabilize webhook test suite","p":"P1","own":"QA","min":240,"why":"reduce flakiness"}
+        ]
+      },
+      "notes": {
+        "risks": ["rate limit may throttle legit bursts","proxy needs auth between FE↔BE"],
+        "next": ["add structured logging","audit 3p dependencies"]
+      }
+    }
+    </json>
+
+    <markdown>
+    ### Auth & Proxy Hardening — Sprint Triage
+    **Summary:** Harden auth, remove secrets from FE, add proxy/rate limits, stabilize webhook tests.
+
+    #### Super Fast Tasks
+    | ID | Priority | Owner | Task | Est. (min) | Why |
+    |----|----------|-------|------|------------|-----|
+    | F1 | P0 | FE | Remove hardcoded secret | 10 | eliminate exposed creds |
+    | F2 | P2 | FE | Fix error copy on login | 15 | clarify UX |
+
+    #### Medium Tasks
+    | ID | Priority | Owner | Task | Est. (min) | Why |
+    |----|----------|-------|------|------------|-----|
+    | M1 | P1 | BE | Add password min length | 45 | improve auth strength |
+    | M2 | P0 | BE | Add rate limit to login | 60 | prevent brute force |
+    | M3 | P1 | BE | Add LLM proxy endpoint | 90 | centralize validation |
+
+    #### High-Effort Tasks
+    | ID | Priority | Owner | Task | Est. (min) | Why |
+    |----|----------|-------|------|------------|-----|
+    | H1 | P1 | QA | Stabilize webhook test suite | 240 | reduce flakiness |
+
+    #### Notes & Follow-ups
+    **Risks:** rate limit may throttle legit bursts; proxy needs auth between FE↔BE.
+    **Next:** add structured logging; audit 3p dependencies.
+    </markdown>
+    </expected_output_skeleton>
+    </EXAMPLE>
+
+    </PRIORITIZATION_PROMPT>
+    )
+    SendHotstringText(text)
+Return
+
+:*:minimal-ux::
+    text =
+    ( LTrim
+    # MASTER PROMPT — UI/UX Expert Agent (Radical-Simple Task App)
+
+    ## ROLE
+    You are a **Principal UI/UX Architect**. Your mandate: design and validate an interface that embodies **radical simplicity** for a task-prioritization + slideshow workflow. Think: *Apple-quality hierarchy*, *OpenAI-quality intelligence*, *Google-homepage restraint*.
+
+    ## NORTH STAR
+    > "Almost nothing on screen except the essential task information and one clear action."
+
+    ## CONTEXT (Product Shape)
+    - Two experiences only:
+      1) **Priorities View** — users see today's prioritized tasks.
+      2) **Slideshow Mode** — users focus on **one** current task, full-bleed, distraction-free.
+    - Intelligence is ambient: anticipate needs from recent conversation history and patterns; do not require explicit commands.
+
+    ## NON-NEGOTIABLE DESIGN PRINCIPLES
+    1) **Radical Simplicity** — information/UI reduced to the minimum needed for the moment.  
+    2) **White Space as a Feature** — generous negative space; breathing room everywhere.  
+    3) **Clear Visual Hierarchy** — the most important element (current task/top priority) visually dominates; supporting info recedes.  
+    4) **Conversational Flow** — interactions feel like a continuation of user intent; avoid "modes within modes."  
+    5) **One Thing at a Time** — especially in slideshow: **the task is the interface**.  
+    6) **Immediate Clarity** — any screen should communicate "what to do next" in ≤2 seconds.
+
+    ## VISUAL SPEC & TOKENS (Opinionated Defaults)
+    - **Palette**: neutral grayscale + **one** accent.
+      - `--bg: #0A0A0A` (or `#FFFFFF` for light)
+      - `--fg: #E6E6E6` (or `#1A1A1A` for light)
+      - `--muted: #9CA3AF`
+      - `--accent: #4F46E5` (indigo, replaceable)
+      - `--border: rgba(148,163,184,0.25)`
+    - **Typography**: modern sans; **≤2 weights** (e.g., Regular 400, SemiBold 600).
+      - Title: 28–40px / 600
+      - Meta: 12–14px / 400, muted
+    - **Touch Targets**: min **44×44pt**; **≤3** interactive elements per screen.
+    - **Motion**: subtle, purpose-driven (100–200ms ease-out); never decorative.
+    - **Density**: roomy; line length 45–70ch; paddings 24–48px (slideshow uses the largest).
+
+    ## FUNCTIONAL CONSTRAINTS
+    - **No Unnecessary Features** — no themes, deep settings, or micro-toggles unless they unblock core flow.
+    - **Fast & Lightweight** — zero perceived latency; LLM work never blocks UI.
+    - **Context-Aware Intelligence** — infer defaults (duration, next step, blockers) from history.
+
+    ## ACCESSIBILITY BASELINES
+    - WCAG AA+ contrast; visible focus states; keyboard navigation.
+    - Respect `prefers-reduced-motion`.
+    - Hit areas ≥44×44pt; body text ≥14px.
+
+    ## DELIVERABLES (ALWAYS RETURN ALL)
+    1) **Rationale (Brief)** — 5–8 bullet decisions tied to principles (no chain-of-thought; outcomes only).  
+    2) **Screen Specs (Lean-JSON)** — compact; model-friendly; no verbose prose.  
+    3) **Copy & Microcopy** — concise, actionable, non-technical.  
+    4) **Interaction Rules** — when elements appear/vanish; max actions per screen.  
+    5) **Acceptance Checklist** — objective pass/fail criteria.
+
+    ## LEAN-JSON SPEC (Use exactly these keys; override values per request)
+    {
+      "modes": ["priorities","slideshow"],
+      "accent":"#4F46E5",
+      "typography":{"family":"Inter, system-ui","weights":["400","600"]},
+      "screens": {
+        "priorities": {
+          "goal":"Choose what to do next in ≤2s",
+          "layout":{
+            "header":{"show":true,"title":"Today","right_action":"Start Slideshow"},
+            "list_item":{
+              "title_max_len":80,
+              "meta":["duration","dependency?","due?"],
+              "actions":["Start","Details"],
+              "max_actions":2
+            },
+            "empty_state":{"title":"No tasks","action":"Add Task"}
+          },
+          "limits":{"interactive_elements_max":3}
+        },
+        "slideshow": {
+          "goal":"Do one task with zero ambiguity",
+          "layout":{
+            "chrome":"hidden",
+            "task_title":{"size_px":36,"weight":"600"},
+            "meta_row":{"items":["duration","notes?","due?"],"muted":true},
+            "primary_action":{"label":"Mark Done"},
+            "secondary_action":{"label":"Pause"},
+            "nav":{"prev":"◀","next":"▶","hints":false}
+          },
+          "limits":{"interactive_elements_max":3}
+        }
+      },
+      "components":{
+        "button_primary":{"min_hit_pt":44,"radius":14},
+        "progress_bar":{"thickness_px":4,"animated":true},
+        "toast":{"slots":["success","error"],"max":1}
+      },
+      "rules":{
+        "one_thing_at_a_time":true,
+        "background_llm_allowed":true,
+        "show_settings":false
+      }
+    }
+
+    ## INTERACTION RULES (APPLY STRICTLY)
+    - **Priorities View**
+      - First paint: "Today" + up to 5–7 items; overflow behind "Show more".
+      - Each item shows **title** (dominant) + small **meta** (duration/due).
+      - One clear CTA on screen: **Start Slideshow** (if idle) or **Resume** (if paused).
+    - **Slideshow Mode**
+      - Full-bleed current task; chrome hidden.
+      - Exactly **one** primary action (**Mark Done**) + optional **Pause**.
+      - Arrow-nav via keyboard/touch allowed, visually de-emphasized.
+      - Timer/progress thin and supportive.
+      - If blocked, offer **one** context-aware prompt: "Ask for help" (micro-chat overlay).
+    - **LLM Behavior**
+      - Predict next task and likely duration from history; propose silently.
+      - Pre-fetch next task data; never block input/scroll.
+
+    ## COPY & MICROCOPY GUIDELINES
+    - Action verbs, short nouns: "Start", "Pause", "Done", "Resume".  
+    - No jargon; 1–5 words per action.  
+    - Informational text ≤120 chars; single-line hints preferred.
+
+    ## ACCEPTANCE CHECKLIST
+    - [ ] ≤3 interactive elements per screen.  
+    - [ ] Dominant element is the task (slideshow) or top item (priorities).  
+    - [ ] User can decide next step in ≤2 seconds.  
+    - [ ] Contrast AA+, focus rings, 44×44pt targets verified.  
+    - [ ] No settings/preferences shown in core flow.  
+    - [ ] LLM work never blocks taps or scroll.  
+
+    ## OUTPUT FORMAT (WHAT YOU RETURN)
+    Return **exactly two sections**, in this order:
+
+    ### Rationale (Brief)
+    - 5–8 bullets, outcome-oriented, tied to principles.
+
+    ### Spec & Copy
+    - The **Lean-JSON** (populated for the request),
+    - The **interaction rules** (list),
+    - All **copy strings** visible to users.
+
+    **Do NOT** include chain-of-thought or extraneous commentary.
+
+    ## FEW-SHOT EXAMPLE (FOR THE AGENT TO FOLLOW)
+
+    ### User Prompt (example)
+    Design the UI for a daily task app with 8 tasks. I want a focus slideshow with timers and keyboard nav.
+
+    ### Rationale (Brief)
+    - Make slideshow primary; priorities secondary (One Thing at a Time).
+    - Limit priorities list to 5 visible; rest behind "Show more".
+    - Accent indigo for primaries; all else grayscale (Monochrome + One Accent).
+    - Large task title (36px/600); meta subdued (12px, muted).
+    - Single primary action per screen; keep Pause as secondary.
+    - Keyboard hints suppressed to reduce chrome; still functional.
+
+    ### Spec & Copy
+    - **Lean-JSON**: fill with 8 tasks → clamp visible to 5; `accent:"#4F46E5"`.
+    - **Interaction Rules**: as defined above; add "auto-advance on Done".
+    - **Copy**:
+      - Header: "Today"
+      - Buttons: "Start Slideshow", "Start", "Details", "Done", "Pause", "Resume"
+      - Empty state: "No tasks", action "Add Task"
+    )
+    SendHotstringText(text)
+Return
+
+!2::
+Send, ^c
+Sleep, 100
+Clipextra := ClipboardAll
+Sleep, 100
+Return
+
+!v::
+Clipboard := Clipextra
+Clipwait
+Send, ^v
+Return
+^!WheelDown::SoundSet -10
+
+^!WheelUp::SoundSet +10
+
+^WheelDown::
+    ActivateWindowUnderMouse()
+    Send, ^{PgDn}
+Return
+
+:*:jpi::Shot7374
+
+^+RButton::Send, ^w
+
+; Hold Ctrl + Win + Alt while holding down the middle mouse button
+MButton::
+    Send, {Ctrl down}{LWin down}{Alt down}
+    KeyWait, MButton
+    Send, {Ctrl up}{LWin up}{Alt up}
+return
+
+
+^WheelUp::
+    ActivateWindowUnderMouse()
+    Send, ^{PgUp}
+Return
+
+^!MButton::Media_Play_Pause
+
+!MButton::
+Send, !l
+Return
+
+^!RButton::Media_Next
+^!LButton::Media_Prev
+
+; Raw-to-Prompt Tool - Alt + Shift + Right Click
++!RButton::
+; Save current clipboard
+ClipSaved := SaveClipboard()
+; Copy selected text
+Send, ^c
+Sleep, PROMPTOPT_LAUNCH_DELAY
+; Check if we got text and launch Raw-to-Prompt tool
+if (Clipboard != "") {
+    ; Launch Raw-to-Prompt tool from the configured directory
+    Run, python "%RAW_TO_PROMPT_MAIN%", %RAW_TO_PROMPT_DIR%
+    Sleep, PROMPTOPT_LAUNCH_DELAY
+} else {
+    ; No text selected, just launch the tool
+    Run, python "%RAW_TO_PROMPT_MAIN%", %RAW_TO_PROMPT_DIR%
+}
+; Restore clipboard
+Clipboard := ClipSaved
+VarSetCapacity(ClipSaved, 0)
+Return
+
+!RButton::
+Send, ^c
+Return
+
+!LButton::
+Send, ^v
+Return
+
+; PromptOpt - Ctrl + Alt + P
+^!p::
+    Gosub, PromptOpt_Run
+Return
+
+; PromptOpt - Ctrl + Alt + XButton1
+^!XButton1::
+    Gosub, PromptOpt_Run
+Return
+
+PromptOpt_Run:
+    ; Visual ping to confirm hotkey fired
+    ShowTip("PromptOpt: launching...", 800)
+
+    ; Try to run with AHK v2 first
+    script = %A_ScriptDir%\promptopt.ahk
+    if (TryRunWithAHKv2(script)) {
+        Return
+    }
+
+    ; Fall back to AHK v1 inline processing
+    RunPromptOptFallback(A_ScriptDir)
+Return
+
+PromptOpt_ShowWindow:
+    Gui, PromptOpt:New, +AlwaysOnTop +Resize, PromptOpt Result
+    Gui, PromptOpt:Add, Edit, vPO_Edit w900 h560 ReadOnly
+    GuiControl,, PO_Edit, %outText%
+    Gui, PromptOpt:Add, Button, gPO_SaveSection w110, Save...
+    Gui, PromptOpt:Add, Button, gPO_OpenSection x+8 w130, Open in Notepad
+    Gui, PromptOpt:Add, Button, gPO_CopySection x+8 w90, Copy
+    Gui, PromptOpt:Add, Button, gPO_CloseSection x+8 w90, Close
+    Gui, PromptOpt:Show
+Return
+
+PO_CopySection:
+    GuiControlGet, __curText,, PO_Edit
+    Clipboard := __curText
+    ToolTip, % "Copied to clipboard."
+    SetTimer, RemoveToolTipLabel, -1200
+Return
+
+PO_CloseSection:
+    Gui, PromptOpt:Destroy
+Return
+
+PO_SaveSection:
+    FileSelectFile, savePath, S, %A_Desktop%, Save Prompt, Text Documents (*.txt)
+    if (savePath = "")
+        Return
+    ; Ensure .txt extension if none provided
+    if !(RegExMatch(savePath, "\.[^.\\/]+$"))
+    {
+        savePath := EnsureTxtExtension(savePath)
+    }
+    GuiControlGet, __curText,, PO_Edit
+    WriteUtf8(savePath, __curText)
+    ShowTip("Saved: " savePath, 1200)
+Return
+
+PO_OpenSection:
+    GuiControlGet, __curText,, PO_Edit
+    tmpView := OpenTempView(__curText)
+Return
+
+:*:xlcorr::
+SendHotstringText("8/26: Submitted more clear correction. ")
+Return
+
+; TODO: Review this hotstring - appears to be a placeholder or test
+:*r:incopw::Shot73747374@@
+
+!WheelDown:: Send, {Backspace}
+
+; Ctrl+XButton1/XButton2 to switch virtual desktops (Win+Ctrl+Left/Right)
+^XButton1::
+    Send, #^{Left}
+Return
+
+^XButton2::
+    Send, #^{Right}
+Return
+
+; ####################################################################
+; #                                                                  #
+; #                      HELPER FUNCTIONS                            #
+; #                                                                  #
+; ####################################################################
+
+; -------------------------------------------------------------------
+; Function: ActivateWindowUnderMouse()
+; Purpose : Activates the window currently under the mouse cursor
+;           if it's not already the active window.
+; -------------------------------------------------------------------
+ActivateWindowUnderMouse() {
+    MouseGetPos,,, WinID
+    If !WinActive(ahk_id WinID)
+        WinActivate, ahk_id %WinID%
+}
+
+; Function: FlattenClipboard()
+; Purpose : Copies selected text, flattens it to a single line,
+;           and replaces the clipboard content with the result.
+; ------------------------------------------------------------
+FlattenClipboard() {
+    sel := GetSelectionText()
+    if (sel = "") {
+        MsgBox, 48, Flatten Clipboard, No text was selected to flatten.
+        return
+    }
+    flatText := Trim(RegExReplace(sel, "\s+", " "))
+    Clipboard := flatText
+    ShowTip("Flattened to clipboard!", 1500)
+}
+
+RemoveToolTipLabel:
+    ToolTip
+Return
+
+; -------------------------------------------------------------------
+; Function: ShowTip(msg, durationMs := 0, x := "", y := "")
+; Purpose : Centralized tooltip with optional timed hide and coordinates
+; -------------------------------------------------------------------
+ShowTip(msg, durationMs := 0, x := "", y := "") {
+    if (x != "" || y != "")
+        ToolTip, % msg, %x%, %y%
+    else
+        ToolTip, % msg
+    if (durationMs && durationMs > 0)
+        SetTimer, RemoveToolTipLabel, -%durationMs%
+}
+
+; -------------------------------------------------------------------
+; Function: SaveClipboard()
+; Purpose : Returns a snapshot of the current clipboard to restore later
+; -------------------------------------------------------------------
+SaveClipboard() {
+    return ClipboardAll
+}
+
+; -------------------------------------------------------------------
+; Function: RestoreClipboard(ByRef saved)
+; Purpose : Restores clipboard from a previously saved snapshot
+; -------------------------------------------------------------------
+RestoreClipboard(ByRef saved) {
+    Clipboard := saved
+    VarSetCapacity(saved, 0)
+}
+
+; -------------------------------------------------------------------
+; Function: GetSelectionText(timeoutMs := CLIPBOARD_TIMEOUT)
+; Purpose : Copies current selection without disturbing existing clipboard
+;           Returns empty string if no selection or timeout.
+; -------------------------------------------------------------------
+GetSelectionText(timeoutMs := 0) {
+    if (timeoutMs = 0)
+        timeoutMs := CLIPBOARD_TIMEOUT
+    saved := ClipboardAll
+    Clipboard := ""
+    Send, ^c
+    sec := timeoutMs/1000.0
+    ClipWait, %sec%
+    sel := ErrorLevel ? "" : Clipboard
+    Clipboard := saved
+    VarSetCapacity(saved, 0)
+    return sel
+}
+
+; -------------------------------------------------------------------
+; Function: WriteUtf8(path, text, overwrite := true)
+; Purpose : Writes text to path in UTF-8, optionally deleting existing first
+; -------------------------------------------------------------------
+WriteUtf8(path, text, overwrite := true) {
+    if (overwrite)
+        FileDelete, %path%
+    FileAppend, %text%, %path%, UTF-8
+}
+
+; -------------------------------------------------------------------
+; Function: EnsureTxtExtension(path)
+; Purpose : Ensures the provided path ends with an extension; defaults to .txt
+; -------------------------------------------------------------------
+EnsureTxtExtension(path) {
+    if !(RegExMatch(path, "\.[^.\\/]+$"))
+        path := path . ".txt"
+    return path
+}
+
+; -------------------------------------------------------------------
+; Function: OpenTempView(text, prefix := "promptopt_view_")
+; Purpose : Writes text to a temp file and opens it in Notepad
+; -------------------------------------------------------------------
+OpenTempView(text, prefix := "promptopt_view_") {
+    tmp := A_Temp . "\\" . prefix . A_TickCount . ".txt"
+    WriteUtf8(tmp, text)
+    Run, notepad.exe "%tmp%"
+    return tmp
+}
+
+; -------------------------------------------------------------------
+; Function: SendKeySequence(keys)
+; Purpose : Sends a key-sequence string via Send for cleaner hotkey calls
+; -------------------------------------------------------------------
+SendKeySequence(keys) {
+    Send, %keys%
+}
+
+; -------------------------------------------------------------------
+; Function: RunHidden(exe, params)
+; Purpose : Runs an executable with parameters in hidden mode
+; -------------------------------------------------------------------
+RunHidden(exe, params) {
+    Run, "%exe%" %params%,, Hide
+}
+
+; -------------------------------------------------------------------
+; Function: CreateTempFile(prefix := "temp_", extension := ".txt")
+; Purpose : Creates a unique temporary file path with timestamp
+; -------------------------------------------------------------------
+CreateTempFile(prefix := "temp_", extension := ".txt") {
+    return A_Temp . "\" . prefix . A_TickCount . extension
+}
+
+; -------------------------------------------------------------------
+; Function: ShowErrorTip(msg, durationMs := TOOLTIP_DURATION)
+; Purpose : Shows a standardized error tooltip with consistent styling
+; -------------------------------------------------------------------
+ShowErrorTip(msg, durationMs := 0) {
+    if (durationMs = 0)
+        durationMs := TOOLTIP_DURATION
+    ShowTip(msg, durationMs, A_ScreenWidth-420, A_ScreenHeight-80)
+}
+
+; -------------------------------------------------------------------
+; Function: TryRunWithAHKv2(script)
+; Purpose : Attempts to run PromptOpt script with AHK v2 if available
+; Returns : True if AHK v2 was found and launched, False otherwise
+; -------------------------------------------------------------------
+TryRunWithAHKv2(script) {
+    IfExist, %AHK_V2_PATH_A%
+    {
+        ; Run directly without using RunHidden to avoid launcher issues
+        Run, "%AHK_V2_PATH_A%" "%script%"
+        return true
+    }
+    IfExist, %AHK_V2_PATH_B%
+    {
+        ; Run directly without using RunHidden to avoid launcher issues
+        Run, "%AHK_V2_PATH_B%" "%script%"
+        return true
+    }
+    return false
+}
+
+; -------------------------------------------------------------------
+; Function: RunPromptOptFallback(scriptDir)
+; Purpose : Runs PromptOpt using AHK v1 inline processing as fallback
+; -------------------------------------------------------------------
+RunPromptOptFallback(scriptDir) {
+    ; Fallback path (AHK v1 orchestrates directly): copy selection -> PS -> clipboard
+    ClipSaved := SaveClipboard()
+    Clipboard := ""
+    Send, ^c
+    ClipWait, % CLIPBOARD_TIMEOUT/1000.0
+    if (ErrorLevel) {
+        ShowErrorTip("Select text first, then run.")
+        RestoreClipboard(ClipSaved)
+        Return
+    }
+
+    ; Use legacy assignment to avoid expression parsing issues
+    userText = %Clipboard%
+    tempSel := CreateTempFile("promptopt_sel_", ".txt")
+    tempOut := CreateTempFile("promptopt_out_", ".txt")
+    FileDelete, %tempSel%
+    FileDelete, %tempOut%
+    WriteUtf8(tempSel, userText)
+    ShowTip("PromptOpt: processing...", 0)
+
+    ; Build PowerShell command (legacy assignment to avoid expression issues)
+    psScript = %scriptDir%\promptopt.ps1
+    logFile := CreateTempFile("promptopt_", ".log")
+    ; Honor PROMPTOPT_MODE if set, else default to meta
+    EnvGet, __po_mode, PROMPTOPT_MODE
+    if (__po_mode = "")
+        __po_mode = meta
+    ; Build PS command without hardcoding BaseUrl (PS bridge will honor OPENAI_BASE_URL)
+    psCmd = powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%psScript%" -SelectionFile "%tempSel%" -OutputFile "%tempOut%" -MetaPromptDir "%scriptDir%" -LogFile "%logFile%" -Model "gpt-5-mini" -Mode "%__po_mode%" -CopyToClipboard
+
+    RunWait, %ComSpec% /c %psCmd%,, Hide
+
+    ; Handle output
+    HandlePromptOptOutput(tempOut, ClipSaved)
+}
+
+; -------------------------------------------------------------------
+; Function: HandlePromptOptOutput(tempOut, ClipSaved)
+; Purpose : Reads and displays PromptOpt output, handles errors
+; -------------------------------------------------------------------
+HandlePromptOptOutput(tempOut, ClipSaved) {
+    if !FileExist(tempOut) {
+        ShowErrorTip("PromptOpt failed: no output.")
+        RestoreClipboard(ClipSaved)
+        Return
+    }
+    outText := ""
+    FileRead, outText, *P65001 %tempOut%
+    if (outText = "") {
+        ShowErrorTip("PromptOpt produced empty output.")
+        RestoreClipboard(ClipSaved)
+        Return
+    }
+    ; Copy to clipboard by default (per spec) and show the window
+    Clipboard := outText
+    ShowTip("Prompt copied to clipboard.", TOOLTIP_DURATION)
+    Gosub, PromptOpt_ShowWindow
+}
+
+; -------------------------------------------------------------------
+; Function: SendHotstringText(text)
+; Purpose : Sends text using clipboard paste method (more reliable for
+;           complex text with special characters). Temporarily replaces
+;           clipboard content, pastes, then restores original content.
+; -------------------------------------------------------------------
+SendHotstringText(text) {
+    ClipSaved := SaveClipboard()
+    Clipboard := text
+    ClipWait, 2
+    if (!ErrorLevel) {
+        Send, ^v
+    }
+    Sleep, 100
+    RestoreClipboard(ClipSaved)
+}
+
+; -------------------------------------------------------------------
+; Function: PasteText(ByRef text) - Legacy function, kept for compatibility
+; Purpose : Temporarily replaces the clipboard content with the
+;           provided text, pastes it, and then restores the
+;           original clipboard content.
+; -------------------------------------------------------------------
+PasteText(ByRef text) {
+    ClipSaved := SaveClipboard()
+    Clipboard := text
+    ClipWait, 2
+    if (!ErrorLevel) {
+        Send, ^v
+    }
+    Sleep, 100
+    RestoreClipboard(ClipSaved)
+}
+
+; ------------------------------------------------------------
+; Hotkey: Ctrl + Shift + XButton2 → Flatten to Clipboard
+; ------------------------------------------------------------
+^+XButton2::FlattenClipboard()
+
+:*:ixreject::
+SendHotstringText("Interconnection Rejected: Other")
+Return
+
+:*:shpw::
+SendHotstringText("Shot7374")
+Return
