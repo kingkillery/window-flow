@@ -1,0 +1,52 @@
+Creating a Windows Shortcut for Template.ahk with AutoHotkey v2
+================================================================
+
+METHOD 1: Direct Command Line
+-----------------------------
+You can run this directly in Command Prompt or create a shortcut:
+
+"C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe" "C:\Users\prest\Desktop\Others\Scripts\Template.ahk"
+
+
+METHOD 2: Create Desktop Shortcut
+----------------------------------
+1. Right-click on your Desktop
+2. Select "New" -> "Shortcut"
+3. In the location field, paste:
+   "C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe" "C:\Users\prest\Desktop\Others\Scripts\Template.ahk"
+4. Click "Next"
+5. Name it: "Template (AHK v2)"
+6. Click "Finish"
+
+
+METHOD 3: Use the Provided Launchers
+-------------------------------------
+Double-click any of these files:
+- LaunchTemplate_v2.bat      (Batch file launcher)
+- Template_v2_Launcher.ahk   (AutoHotkey v1 launcher that starts v2)
+- LaunchTemplate.ps1         (PowerShell launcher)
+- RunTemplate.ahk           (Direct v2 wrapper)
+
+
+METHOD 4: Set Default for .ahk files to use v2
+-----------------------------------------------
+1. Right-click on Template.ahk
+2. Select "Open with" -> "Choose another app"
+3. Click "More apps"
+4. Click "Look for another app on this PC"
+5. Navigate to: C:\Program Files\AutoHotkey\v2\
+6. Select "AutoHotkey64.exe"
+7. Check "Always use this app to open .ahk files" (optional)
+8. Click "Open"
+
+
+QUICK FIX: Right-Click Menu
+----------------------------
+Right-click Template.ahk and select:
+"Open with" -> Navigate to "C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe"
+
+
+VERIFIED PATH:
+--------------
+AutoHotkey v2 is installed at: C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe
+Your script is at: C:\Users\prest\Desktop\Others\Scripts\Template.ahk

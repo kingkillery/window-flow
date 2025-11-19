@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(powershell:*)",
+      "Bash(Get-Content \"C:\\Users\\prest\\Desktop\\Others\\Scripts\\Template.ahk\")",
+      "Bash(Select-Object -First 5)",
+      "Bash(Get-Content:*)",
+      "Bash(Select-String:*)",
+      "Bash(autohotkey.exe \"C:\\Users\\prest\\Desktop\\Others\\Scripts\\hotstrings\\templates.ahk\")",
+      "Bash(where:*)",
+      "Bash(\"C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey.exe\" /ErrorStdOut \"C:\\Users\\prest\\Desktop\\Others\\Scripts\\hotstrings\\templates.ahk\")",
+      "Bash(autohotkey.exe:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "WebFetch(domain:github.com)",
+      "Bash(node:*)",
+      "Bash(npm:*)",
+      "Bash(pnpm run build:main)",
+      "Bash($null)",
+      "Bash(Get-Command par -ErrorAction SilentlyContinue)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

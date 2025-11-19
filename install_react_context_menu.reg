@@ -1,0 +1,17 @@
+Windows Registry Editor Version 5.00
+
+; Add "Optimize with PromptOpt (ReAct)" to Windows context menu
+[HKEY_CLASSES_ROOT\*\shell\PromptOptReAct]
+@="Optimize with PromptOpt (ReAct)"
+"Icon"="shell32.dll,25"
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOptReAct\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\react_context_menu.bat\" \"%1\""
+
+; Add "Optimize with PromptOpt (Meta)" to Windows context menu
+[HKEY_CLASSES_ROOT\*\shell\PromptOptMeta]
+@="Optimize with PromptOpt (Meta)"
+"Icon"="shell32.dll,25"
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOptMeta\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\meta_context_menu.bat\" \"%1\""

@@ -1,0 +1,18 @@
+Windows Registry Editor Version 5.00
+
+; Enhanced PromptOpt Context Menu Removal
+; This file removes all PromptOpt context menu entries including file-specific ones
+
+; Remove PromptOpt context menu for all files
+[-HKEY_CLASSES_ROOT\*\shell\PromptOpt]
+
+; Remove file type specific menus
+[-HKEY_CLASSES_ROOT\markdownfile\shell\PromptOpt]
+[-HKEY_CLASSES_ROOT\pythonfile\shell\PromptOpt]
+[-HKEY_CLASSES_ROOT\javascriptfile\shell\PromptOpt]
+[-HKEY_CLASSES_ROOT\typescriptfile\shell\PromptOpt]
+[-HKEY_CLASSES_ROOT\cssfile\shell\PromptOpt]
+[-HKEY_CLASSES_ROOT\htmlfile\shell\PromptOpt]
+
+; Remove PromptOpt context menu for directory background
+[-HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt]

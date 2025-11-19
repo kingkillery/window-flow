@@ -1,0 +1,10 @@
+Windows Registry Editor Version 5.00
+
+; PromptOpt Context Menu Removal
+; This file removes PromptOpt from the Windows right-click context menu
+
+; Remove PromptOpt context menu for all files
+[-HKEY_CLASSES_ROOT\*\shell\PromptOpt]
+
+; Remove PromptOpt context menu for directory background
+[-HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt]

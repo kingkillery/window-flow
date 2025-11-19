@@ -1,0 +1,30 @@
+{
+  "summary": "Consolidated agent-facing documentation into AGENTS.md (single source of truth), created synchronized CLAUDE.md provider mirror, normalized PLAN.md with North Star and Immediate Next Steps, created TODO.md with next 5-20 tasks, moved user-facing docs to docs/ directory with INDEX.md, created archive/ directory for deprecated files, and updated all cross-references. Removed Codex-specific content from AGENTS.md that was not relevant to this repository.",
+  "docs_map": [
+    {"path": "AGENTS.md", "status": "rewritten", "purpose": "single source of truth / brain / system prompt"},
+    {"path": "CLAUDE.md", "status": "updated", "purpose": "provider-specific mirror aligned with AGENTS.md"},
+    {"path": "PLAN.md", "status": "rewritten", "purpose": "FULL plan + immediate next steps"},
+    {"path": "TODO.md", "status": "added", "purpose": "ordered list of next 5-20 tasks"},
+    {"path": "docs/README.md", "status": "moved", "purpose": "entry point to user docs"},
+    {"path": "docs/CONTRIBUTING.md", "status": "moved", "purpose": "development guidelines"},
+    {"path": "docs/INDEX.md", "status": "added", "purpose": "discoverability"},
+    {"path": "archive/INDEX.md", "status": "added", "purpose": "audit trail of archived notes"}
+  ],
+  "actions": [
+    {"path": "plan.md", "action": "renamed", "target": "PLAN.md", "reason": "naming consistency"},
+    {"path": "README.md", "action": "moved", "target": "docs/README.md", "reason": "user-facing docs organization"},
+    {"path": "CONTRIBUTING.md", "action": "moved", "target": "docs/CONTRIBUTING.md", "reason": "user-facing docs organization"},
+    {"path": "Template.ahk.backup", "action": "archived", "reason": "backup file before modularization"},
+    {"path": "Template.ahk.old", "action": "archived", "reason": "old version before reorganization"},
+    {"path": "GPT-5-Prompt-Guide.md", "action": "archived", "reason": "reference material, not core documentation"}
+  ],
+  "link_check": {
+    "broken_links": [],
+    "fixed_links": [
+      "Updated AGENTS.md references to point to docs/README.md",
+      "Updated docs/README.md references to point to ../CLAUDE.md"
+    ]
+  },
+  "open_questions": []
+}
+

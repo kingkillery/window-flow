@@ -1,0 +1,183 @@
+(() => {
+  const NS = (window.StatusScan = window.StatusScan || {});
+
+  // ==== CONFIG ====
+  const DEFAULT_PROJECTS = [
+    "DE-16902","DE-17212","DE-17242","DE-17331",
+    "DE-17517","DE-16375","DE-17694","DE-17231",
+    "DE-17752","DE-17753","DE-16961","DE-17156","DE-16943"
+  ];
+
+  // ==== UTILS ====
+  const snooze = (ms) => new Promise(r => setTimeout(r, ms));
+  const norm = (txt) => (txt || "").replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim();
+  const qsAny = (sels, root=document) => sels.map(s => root.querySelector(s)).find(Boolean) || null;
+  const qsaAny = (sels, root=document) => sels.map(s => [...root.querySelectorAll(s)]).find(a => a.length) || [];
+  const clickEl = (el) => { if(!el) return; el.dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); el.dispatchEvent(new MouseEvent('mouseup',{bubbles:true})); el.click(); };
+  const setInputValue = (el,val)=>{const setter=Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el)||HTMLInputElement.prototype,'value')?.set;if(setter)setter.call(el,val);else el.value=val;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));};
+
+  // ==== SELECTORS ====
+  const SELECTORS = {
+    searchInput:["input[data-test-role='search-input']","input[type='search']","input[placeholder*='Search']"],
+    searchButton:["button[data-test-role='search-button']","button[title*='Search']","button:has(svg[aria-label='Search'])"],
+    clearButton:["button[data-test-role='clear-search']","button[title*='Clear']", ".slds-input__icon_right button"],
+    tableContainer:["[data-test-role='project-table']","table[data-test-role='grid']","div[role='grid']","table.slds-table","table"],
+    tableRows:["table tbody tr","[role='rowgroup'] [role='row']"],
+    spinnerOrBusy:["[data-test-role*='loading']",".slds-spinner","[aria-busy='true']"],
+    projectCell:["td[data-test-role='cell_ProjectData0']","[role='gridcell']:nth-child(1)","td:nth-child(1)"],
+    statusCell:["td[data-test-role='cell_ProjectData2']","[role='gridcell']:nth-child(3)","td:nth-child(3)"]
+  };
+
+  // ==== TABLE HELPERS ====
+  const getTableRoot = () => qsAny(SELECTORS.tableContainer) || document;
+  const getRows = () => qsaAny(SELECTORS.tableRows, getTableRoot());
+  const tableSignature = () => getRows().map(r => norm(r.textContent)).join("|");
+  const tableLooksBusy = () => {
+    if (qsAny(SELECTORS.spinnerOrBusy, getTableRoot())) return true;
+    let el=getTableRoot();
+    while(el){if(el.getAttribute?.('aria-busy')==='true')return true;el=el.parentElement;}
+    return false;
+  };
+  const waitForTableRedraw = async (prevSig, timeout=9000)=>{
+    const start=performance.now();
+    while(performance.now()-start<timeout){
+      const sig=tableSignature();
+      if(!tableLooksBusy()&&sig!==prevSig&&getRows().length) return true;
+      await snooze(120);
+    }
+    return false;
+  };
+  const findRowForProject = (p)=>getRows().find(r=>{
+    const c=qsAny(SELECTORS.projectCell,r);
+    const t=norm(c?.textContent||"");
+    return t===p||t.includes(p);
+  })||null;
+  const extractStatusFromRow = (r)=>{
+    const c=qsAny(SELECTORS.statusCell,r);
+    return norm(c?.textContent||"");
+  };
+  const clearSearch = async (input, clearBtn, searchBtn)=>{
+    if(clearBtn){clickEl(clearBtn);await snooze(150);}
+    else{
+      setInputValue(input,"");
+      if(searchBtn)clickEl(searchBtn);
+      input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+    }
+    await snooze(200);
+  };
+
+  // ==== CSV UTIL ====
+  function arrayToCsv(data) {
+    const header = Object.keys(data[0]).join(",");
+    const rows = data.map(o => Object.values(o).map(v => `"${(v||"").replace(/"/g,'""')}"`).join(","));
+    return [header, ...rows].join("\r\n");
+  }
+  function downloadCsv(data, filename="StatusScanResults.csv") {
+    const blob = new Blob([arrayToCsv(data)], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ==== BUTTON UI ====
+  function ensureToolbar() {
+    let toolbar = document.getElementById("statusScanToolbar");
+    if (!toolbar) {
+      toolbar = document.createElement("div");
+      toolbar.id = "statusScanToolbar";
+      toolbar.style.position = "fixed";
+      toolbar.style.bottom = "20px";
+      toolbar.style.right = "20px";
+      toolbar.style.zIndex = 999999;
+      toolbar.style.background = "rgba(0,0,0,0.7)";
+      toolbar.style.padding = "10px";
+      toolbar.style.borderRadius = "12px";
+      toolbar.style.color = "white";
+      toolbar.style.fontSize = "14px";
+      toolbar.style.boxShadow = "0 0 6px rgba(0,0,0,0.3)";
+      document.body.appendChild(toolbar);
+    }
+    return toolbar;
+  }
+
+  function addDownloadButton(data) {
+    const toolbar = ensureToolbar();
+    const btn = document.createElement("button");
+    btn.textContent = "⬇ Download CSV";
+    btn.style.background = "#00bfa5";
+    btn.style.color = "white";
+    btn.style.border = "none";
+    btn.style.borderRadius = "6px";
+    btn.style.padding = "6px 12px";
+    btn.style.cursor = "pointer";
+    btn.style.marginTop = "4px";
+    btn.onclick = () => downloadCsv(data);
+    toolbar.innerHTML = "<strong>StatusScan Done!</strong><br/>";
+    toolbar.appendChild(btn);
+  }
+
+  // ==== MAIN RUN ====
+  NS.run = async function run(projectNumbers = DEFAULT_PROJECTS) {
+    const searchInput = qsAny(SELECTORS.searchInput);
+    const searchButton = qsAny(SELECTORS.searchButton);
+    const clearBtn = qsAny(SELECTORS.clearButton);
+
+    if (!searchInput) {
+      console.error("Search input not found. Update SELECTORS.searchInput.");
+      return [];
+    }
+
+    const results = [];
+    for (const project of projectNumbers) {
+      const beforeSig = tableSignature();
+      console.log("[StatusScan] Searching:", project);
+
+      setInputValue(searchInput, project);
+      if (searchButton) clickEl(searchButton);
+      searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      searchInput.focus(); searchInput.scrollIntoView({block:"center"});
+
+      let redrew = await waitForTableRedraw(beforeSig, 9000);
+      if (!redrew) {
+        console.warn(`[StatusScan] No redraw detected for ${project}, retrying…`);
+        await snooze(900);
+        redrew = await waitForTableRedraw(beforeSig, 3000);
+      }
+
+      const t0 = performance.now();
+      let row = null;
+      while (!row && performance.now() - t0 < 7000) {
+        row = findRowForProject(project);
+        if (!row) await snooze(125);
+      }
+
+      if (!row) {
+        console.warn(`[StatusScan] Row not found for ${project}.`);
+        results.push({ project, status: "Not found", timestamp: new Date().toLocaleString() });
+        await clearSearch(searchInput, clearBtn, searchButton);
+        continue;
+      }
+
+      const status = extractStatusFromRow(row) || "Status not found";
+      results.push({ project, status, timestamp: new Date().toLocaleString() });
+      console.log(`[StatusScan] ${project} → ${status}`);
+
+      await clearSearch(searchInput, clearBtn, searchButton);
+      await snooze(250);
+    }
+
+    console.table(results);
+    console.log("Project Status Results:", results);
+    addDownloadButton(results);
+    return results;
+  };
+
+  console.info("✅ StatusScan loaded. Run with: StatusScan.run([\"DE-####\", ...])");
+})();
+
+
+
+ACTIVATE WITH: StatusScan.run();

@@ -1,0 +1,76 @@
+﻿[2025-11-16 23:20:50.819] --- PromptOpt start (Mode=react, Model=openai/gpt-oss-120b) ---
+[2025-11-16 23:20:50.853] Args: SelectionFile='test_prompt.txt' OutputFile='test_output.txt' MetaPromptDir='.\meta-prompts' BaseUrl='https://openrouter.ai/api/v1'
+[2025-11-16 23:20:50.876] Profile=general
+[2025-11-16 23:20:50.908] Selection length=30
+[2025-11-16 23:20:50.937] Meta prompt file: .\meta-prompts\Meta_Prompt_ReAct.md
+[2025-11-16 23:20:50.958] System prompt length=3785
+[2025-11-16 23:20:51.061] Python exe: py
+[2025-11-16 23:20:51.063] Using OPENROUTER_API_KEY due to BaseUrl openrouter.ai
+[2025-11-16 23:20:51.074] Invoking Python backend...
+[2025-11-16 23:20:51.107] Python cmd: py "C:\Users\prest\Desktop\Others\Scripts\promptopt\promptopt.py" "--system-prompt-file" "C:\Users\prest\AppData\Local\Temp\promptopt_sys_638989572509784785.txt" "--user-input-file" "test_prompt.txt" "--output-file" "test_output.txt" "--model" "openai/gpt-oss-120b" "--base-url" "https://openrouter.ai/api/v1"
+[2025-11-16 23:20:51.606] py: DBG: start main
+[2025-11-16 23:20:51.606] py: DBG: base_url=https://openrouter.ai/api/v1
+[2025-11-16 23:20:51.643] py: DBG: model_req=openai/gpt-oss-120b
+[2025-11-16 23:20:51.667] py: DBG: trying model: openai/gpt-oss-120b
+[2025-11-16 23:20:51.693] py: DBG: using OpenRouter endpoint: https://openrouter.ai/api/v1
+[2025-11-16 23:20:51.712] py: DBG: HTTP 401: {"error":{"message":"User not found.","code":401}}
+[2025-11-16 23:20:51.733] py: HTTP 401: {"error":{"message":"User not found.","code":401}}
+[2025-11-16 23:20:51.772] Python exit code=2
+[2025-11-16 23:20:51.810] ERROR: Python call failed.
+[2025-11-16 23:22:32.879] --- PromptOpt start (Mode=react, Model=openai/gpt-oss-120b) ---
+[2025-11-16 23:22:32.908] Args: SelectionFile='test_prompt.txt' OutputFile='test_output.txt' MetaPromptDir='.\meta-prompts' BaseUrl='https://openrouter.ai/api/v1'
+[2025-11-16 23:22:32.959] Profile=general
+[2025-11-16 23:22:33.005] Selection length=30
+[2025-11-16 23:22:33.056] Meta prompt file: .\meta-prompts\Meta_Prompt_ReAct.md
+[2025-11-16 23:22:33.090] System prompt length=3785
+[2025-11-16 23:22:33.167] Python exe: py
+[2025-11-16 23:22:33.168] Using OPENROUTER_API_KEY due to BaseUrl openrouter.ai
+[2025-11-16 23:22:33.194] Invoking Python backend...
+[2025-11-16 23:22:33.229] Python cmd: py "C:\Users\prest\Desktop\Others\Scripts\promptopt\promptopt.py" "--system-prompt-file" "C:\Users\prest\AppData\Local\Temp\promptopt_sys_638989573531058955.txt" "--user-input-file" "test_prompt.txt" "--output-file" "test_output.txt" "--model" "openai/gpt-oss-120b" "--base-url" "https://openrouter.ai/api/v1"
+[2025-11-16 23:22:33.634] py: DBG: start main
+[2025-11-16 23:22:33.634] py: DBG: base_url=https://openrouter.ai/api/v1
+[2025-11-16 23:22:33.665] py: DBG: model_req=openai/gpt-oss-120b
+[2025-11-16 23:22:33.686] py: DBG: trying model: openai/gpt-oss-120b
+[2025-11-16 23:22:33.723] py: DBG: using OpenRouter endpoint: https://openrouter.ai/api/v1
+[2025-11-16 23:22:33.783] py: DBG: HTTP 401: {"error":{"message":"User not found.","code":401}}
+[2025-11-16 23:22:33.820] py: HTTP 401: {"error":{"message":"User not found.","code":401}}
+[2025-11-16 23:22:33.846] Python exit code=2
+[2025-11-16 23:22:33.885] ERROR: Python call failed.
+[2025-11-16 23:22:46.678] --- PromptOpt start (Mode=react, Model=openai/gpt-oss-120b) ---
+[2025-11-16 23:22:46.705] Args: SelectionFile='test_prompt.txt' OutputFile='test_output.txt' MetaPromptDir='.\meta-prompts' BaseUrl='https://openrouter.ai/api/v1'
+[2025-11-16 23:22:46.746] Profile=general
+[2025-11-16 23:22:46.799] Selection length=30
+[2025-11-16 23:22:46.840] Meta prompt file: .\meta-prompts\Meta_Prompt_ReAct.md
+[2025-11-16 23:22:46.899] System prompt length=3785
+[2025-11-16 23:22:47.010] Python exe: py
+[2025-11-16 23:22:47.011] Using OPENROUTER_API_KEY due to BaseUrl openrouter.ai
+[2025-11-16 23:22:47.053] Invoking Python backend...
+[2025-11-16 23:22:47.097] Python cmd: py "C:\Users\prest\Desktop\Others\Scripts\promptopt\promptopt.py" "--system-prompt-file" "C:\Users\prest\AppData\Local\Temp\promptopt_sys_638989573669572722.txt" "--user-input-file" "test_prompt.txt" "--output-file" "test_output.txt" "--model" "openai/gpt-oss-120b" "--base-url" "https://openrouter.ai/api/v1"
+[2025-11-16 23:22:47.591] py: DBG: start main
+[2025-11-16 23:22:47.592] py: DBG: base_url=https://openrouter.ai/api/v1
+[2025-11-16 23:22:47.636] py: DBG: model_req=openai/gpt-oss-120b
+[2025-11-16 23:22:47.673] py: DBG: trying model: openai/gpt-oss-120b
+[2025-11-16 23:22:47.711] py: DBG: using OpenRouter endpoint: https://openrouter.ai/api/v1
+[2025-11-16 23:22:47.753] py: DBG: HTTP 401: {"error":{"message":"User not found.","code":401}}
+[2025-11-16 23:22:47.801] py: HTTP 401: {"error":{"message":"User not found.","code":401}}
+[2025-11-16 23:22:47.833] Python exit code=2
+[2025-11-16 23:22:47.873] ERROR: Python call failed.
+[2025-11-16 23:22:55.092] --- PromptOpt start (Mode=react, Model=openai/gpt-oss-120b) ---
+[2025-11-16 23:22:55.111] Args: SelectionFile='test_prompt.txt' OutputFile='test_output.txt' MetaPromptDir='.\meta-prompts' BaseUrl='https://openrouter.ai/api/v1'
+[2025-11-16 23:22:55.147] Profile=general
+[2025-11-16 23:22:55.186] Selection length=30
+[2025-11-16 23:22:55.210] Meta prompt file: .\meta-prompts\Meta_Prompt_ReAct.md
+[2025-11-16 23:22:55.238] System prompt length=3785
+[2025-11-16 23:22:55.328] Python exe: py
+[2025-11-16 23:22:55.332] Using OPENROUTER_API_KEY due to BaseUrl openrouter.ai
+[2025-11-16 23:22:55.360] Invoking Python backend...
+[2025-11-16 23:22:55.379] Python cmd: py "C:\Users\prest\Desktop\Others\Scripts\promptopt\promptopt.py" "--system-prompt-file" "C:\Users\prest\AppData\Local\Temp\promptopt_sys_638989573752648900.txt" "--user-input-file" "test_prompt.txt" "--output-file" "test_output.txt" "--model" "openai/gpt-oss-120b" "--base-url" "https://openrouter.ai/api/v1"
+[2025-11-16 23:22:55.678] py: DBG: start main
+[2025-11-16 23:22:55.679] py: DBG: base_url=https://openrouter.ai/api/v1
+[2025-11-16 23:22:55.739] py: DBG: model_req=openai/gpt-oss-120b
+[2025-11-16 23:22:55.777] py: DBG: trying model: openai/gpt-oss-120b
+[2025-11-16 23:22:55.819] py: DBG: using OpenRouter endpoint: https://openrouter.ai/api/v1
+[2025-11-16 23:22:55.864] py: DBG: HTTP 401: {"error":{"message":"User not found.","code":401}}
+[2025-11-16 23:22:55.917] py: HTTP 401: {"error":{"message":"User not found.","code":401}}
+[2025-11-16 23:22:55.971] Python exit code=2
+[2025-11-16 23:22:56.013] ERROR: Python call failed.

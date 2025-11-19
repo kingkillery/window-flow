@@ -1,0 +1,54 @@
+Windows Registry Editor Version 5.00
+
+; Remove old deprecated keys
+[-HKEY_CLASSES_ROOT\*\shell\PromptOptMeta]
+[-HKEY_CLASSES_ROOT\*\shell\PromptOptReAct]
+
+; ============================================================================
+; FILE CONTEXT MENU
+; ============================================================================
+
+; Custom Fill option for files
+[HKEY_CLASSES_ROOT\*\shell\PromptOptCustom]
+@="PromptOpt: Custom Fill..."
+"Icon"="C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt.ico,0"
+"Position"="Top"
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOptCustom\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"%1\" \"custom\""
+
+
+; ============================================================================
+; DIRECTORY CONTEXT MENU (Right-click on a folder)
+; ============================================================================
+
+; Custom Fill option for directories (concatenates text files)
+[HKEY_CLASSES_ROOT\Directory\shell\PromptOptCustom]
+@="PromptOpt: Custom Fill..."
+"Icon"="C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt.ico,0"
+"Position"="Top"
+
+[HKEY_CLASSES_ROOT\Directory\shell\PromptOptCustom\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"%1\" \"custom\""
+
+; Copy Content option for directories
+[HKEY_CLASSES_ROOT\Directory\shell\PromptOptCopy]
+@="PromptOpt: Copy All Text Content"
+"Icon"="shell32.dll,260"
+
+[HKEY_CLASSES_ROOT\Directory\shell\PromptOptCopy\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"%1\" \"copyraw\""
+
+
+; ============================================================================
+; DIRECTORY BACKGROUND CONTEXT MENU (Right-click inside a folder)
+; ============================================================================
+
+; Custom Fill option for clipboard content
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOptCustom]
+@="PromptOpt: Custom Fill (Clipboard)..."
+"Icon"="C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt.ico,0"
+"Position"="Top"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOptCustom\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"clipboard\" \"custom\""

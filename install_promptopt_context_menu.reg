@@ -1,0 +1,108 @@
+Windows Registry Editor Version 5.00
+
+; PromptOpt Context Menu Integration
+; This file adds PromptOpt to the Windows right-click context menu
+
+; Add PromptOpt context menu for all files
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt]
+@="PromptOpt"
+"Icon"="C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt.ico,0"
+"Position"="Top"
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\browser]
+@="Optimize with Browser Profile"
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\browser\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"%1\" \"browser\""
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\coding]
+@="Optimize with Coding Profile"
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\coding\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"%1\" \"coding\""
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\writing]
+@="Optimize with Writing Profile"
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\writing\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"%1\" \"writing\""
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\rag]
+@="Optimize with RAG Profile"
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\rag\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"%1\" \"rag\""
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\general]
+@="Optimize with General Profile"
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\general\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"%1\" \"general\""
+
+; Separator
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\sep1]
+@="-"
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\settings]
+@="Configure PromptOpt..."
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\settings\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"settings\""
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\about]
+@="About PromptOpt"
+
+[HKEY_CLASSES_ROOT\*\shell\PromptOpt\shell\about\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"about\""
+
+; Add PromptOpt context menu for directory background (for text selection)
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt]
+@="PromptOpt"
+"Icon"="C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt.ico,0"
+"Position"="Top"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\browser]
+@="Optimize with Browser Profile"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\browser\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"clipboard\" \"browser\""
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\coding]
+@="Optimize with Coding Profile"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\coding\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"clipboard\" \"coding\""
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\writing]
+@="Optimize with Writing Profile"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\writing\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"clipboard\" \"writing\""
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\rag]
+@="Optimize with RAG Profile"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\rag\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"clipboard\" \"rag\""
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\general]
+@="Optimize with General Profile"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\general\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"clipboard\" \"general\""
+
+; Separator
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\sep1]
+@="-"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\settings]
+@="Configure PromptOpt..."
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\settings\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"settings\""
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\about]
+@="About PromptOpt"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PromptOpt\shell\about\command]
+@="\"C:\\Users\\prest\\Desktop\\Others\\Scripts\\promptopt\\promptopt_context.ahk\" \"about\""
