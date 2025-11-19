@@ -128,6 +128,8 @@ package-lock.json
 yarn.lock
 
 # Project-specific
+crystal/
+par/
 crystal/frontend/package-lock.json
 crystal/pnpm-lock.yaml
 par/uv.lock
