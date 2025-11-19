@@ -564,7 +564,7 @@ PK_ShowPromptOptHelp() {
     helpText .= "   - Optimize Entire Field: Optimize all text in current field/text area`n"
     helpText .= "   - Optimize Clipboard: Optimize text already copied to clipboard`n`n"
     helpText .= "3. AUTOMATIC MODE (PK_PROMPT prefix)`n"
-    helpText .= "   - Type ""PK_PROMPT "" before your text`n"
+    helpText .= "   - Type " . Chr(34) . "PK_PROMPT " . Chr(34) . " before your text`n"
     helpText .= "   - Press Ctrl+Alt+Shift+C to toggle monitoring`n"
     helpText .= "   - Copy text with PK_PROMPT prefix -> automatic optimization`n`n"
     helpText .= "4. RIGHT-CLICK CONTEXT MENU`n"
@@ -902,79 +902,6 @@ PK_ProcessResult(tempOut, tempLog, ClipSaved, tempSel := "") {
     if (tempSel != "") {
         try FileDelete(tempSel)
     }
-}
-
-; -------------------------------------------------------------------
-; Function: SendHotstringText(text)
-; Purpose : Sends text as if typed (for hotstring replacement)
-; -------------------------------------------------------------------
-SendHotstringText(text) {
-    Send("{Raw}" . text)
-}
-
-; -------------------------------------------------------------------
-; Function: SaveClipboard()
-; Purpose : Saves current clipboard content
-; -------------------------------------------------------------------
-SaveClipboard() {
-    return ClipboardAll()
-}
-
-; -------------------------------------------------------------------
-; Function: RestoreClipboard(saved)
-; Purpose : Restores saved clipboard content
-; -------------------------------------------------------------------
-RestoreClipboard(saved) {
-    A_Clipboard := saved
-}
-
-; -------------------------------------------------------------------
-; Function: LoadDotEnv()
-; Purpose : Loads environment variables from .env file
-; -------------------------------------------------------------------
-LoadDotEnv() {
-    envFile := A_ScriptDir . "\.env"
-    if (!FileExist(envFile)) {
-        return
-    }
-    
-    try {
-        fileContent := FileRead(envFile, "UTF-8")
-        lines := StrSplit(fileContent, "`n", "`r")
-        
-        for line in lines {
-            line := Trim(line)
-            ; Skip empty lines and comments
-            if (line = "" || SubStr(line, 1, 1) = "#") {
-                continue
-            }
-            
-            ; Parse KEY=VALUE format
-            pos := InStr(line, "=")
-            if (pos > 0) {
-                key := Trim(SubStr(line, 1, pos - 1))
-                value := Trim(SubStr(line, pos + 1))
-                
-                ; Remove quotes if present
-                if (SubStr(value, 1, 1) = '"' && SubStr(value, -1) = '"') {
-                    value := SubStr(value, 2, -1)
-                }
-                
-                ; Set as environment variable
-                EnvSet(key, value)
-            }
-        }
-    } catch {
-        ; Silently fail if .env file can't be read
-    }
-}
-
-; -------------------------------------------------------------------
-; Function: EnvSet(key, value)
-; Purpose : Sets an environment variable for the current process
-; -------------------------------------------------------------------
-EnvSet(key, value) {
-    DllCall("SetEnvironmentVariable", "Str", key, "Str", value)
 }
 
 ; ====================================================================

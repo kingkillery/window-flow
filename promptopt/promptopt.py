@@ -303,11 +303,13 @@ def main() -> int:
                     except Exception:
                         pass
                     wrote_any = False
-                    with open(args.output_file, 'a', encoding='utf-8', newline='') as outf:
-                        for piece in try_stream(base_url, m, sys_prompt, user_input, api_key, timeout_sec):
+                    for piece in try_stream(base_url, m, sys_prompt, user_input, api_key, timeout_sec):
+                        # Open/close for every chunk to avoid file locking issues on Windows
+                        # so the frontend can read it in real-time
+                        with open(args.output_file, 'a', encoding='utf-8', newline='') as outf:
                             outf.write(piece)
-                            outf.flush()
-                            wrote_any = True
+                        wrote_any = True
+                    
                     if wrote_any:
                         dbg("stream complete with content")
                         return 0

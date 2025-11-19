@@ -84,14 +84,13 @@ __HideTipSec() {
 ; Returns : ClipboardAll data
 ; -------------------------------------------------------------------
 SaveClipboard() {
-    return ClipboardAll
+    return ClipboardAll()
 }
 
 ; -------------------------------------------------------------------
-; Function: RestoreClipboard(ByRef savedClip)
+; Function: RestoreClipboard(savedClip)
 ; Purpose : Restores previously saved clipboard content
 ; -------------------------------------------------------------------
-RestoreClipboard(&savedClip) {
+RestoreClipboard(savedClip) {
     A_Clipboard := savedClip
-    savedClip := ""
 }
