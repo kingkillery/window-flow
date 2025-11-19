@@ -2,19 +2,6 @@
 SendMode("Input")
 SetWorkingDir(A_ScriptDir)
 
-; ####################################################################
-; # TEMPLATE.AHK - Main Entry Point (Modular)                        #
-; # Purpose: Hotkey orchestration and PromptOpt integration          #
-; # Version: 2.0 - Modular (2025-10-30) - FIXED                    #
-; ####################################################################
-
-; Load environment variables from .env file
-LoadDotEnv()
-
-; ====================================================================
-; CONFIGURATION CONSTANTS
-; ====================================================================
-
 ; Tool paths - Configurable via environment variable with fallback
 envRawToPromptDir := EnvGet("RAW_TO_PROMPT_DIR")
 if (envRawToPromptDir = "") {
@@ -30,12 +17,17 @@ global CLIPBOARD_TIMEOUT := 1000
 global TOOLTIP_DURATION := 1200
 global PROMPTOPT_LAUNCH_DELAY := 500
 
+; Default AHK v2 executable paths (used by TryRunWithAHKv2)
+global AHK_V2_PATH_A := "C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe"
+global AHK_V2_PATH_B := "C:\Program Files (x86)\AutoHotkey\v2\AutoHotkey64.exe"
+
 ; PK marker automation for quick prompt optimization via clipboard
 global PK_TRIGGER_PREFIX := "PK_PROMPT"
 global PK_CLIPBOARD_GUARD := false
 global PK_PROMPTOPT_BUSY := false
 global PK_PROMPT_MENU_BUILT := false
 global PK_CLIPBOARD_MONITORING_ENABLED := false
+global PK_INSANO_MODE := false ; Insano Mode Toggle
 global Clipextra := ""  ; Initialize for clipboard extras
 
 ; Only enable clipboard monitoring if explicitly enabled
@@ -43,168 +35,141 @@ if (PK_CLIPBOARD_MONITORING_ENABLED) {
     OnClipboardChange(PK_HandleClipboard)
 }
 
-; AHK v2 paths - Centralized for easier maintenance
-global AHK_V2_PATH_A := "C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe"
-global AHK_V2_PATH_B := A_AppData . "\..\Local\Programs\AutoHotkey\v2\AutoHotkey64.exe"
+; Load hotkey modules
+#Include "hotkeys/windows.ahk"
+#Include "hotkeys/mouse.ahk"
+#Include "hotkeys/media.ahk"
 
 ; ====================================================================
-; INCLUDE MODULAR COMPONENTS
+; INSANO MODE TOGGLE (Ctrl+Alt+I)
 ; ====================================================================
 
-; Core environment & helpers
-#Include %A_ScriptDir%\core\environment.ahk
-
-; Hotstrings (text expansion)
-#Include %A_ScriptDir%\hotstrings\api-keys.ahk
-#Include %A_ScriptDir%\hotstrings\general.ahk
-#Include %A_ScriptDir%\hotstrings\templates.ahk
-#Include %A_ScriptDir%\hotstrings\role-task-constraint.ahk
-
-; Hotkeys (keyboard/mouse shortcuts)
-#Include %A_ScriptDir%\hotkeys\mouse.ahk
-#Include %A_ScriptDir%\hotkeys\media.ahk
-#Include %A_ScriptDir%\hotkeys\windows.ahk
-
-; ====================================================================
-; CLIPBOARD EXTRAS (Alt+2 / Alt+V)
-; ====================================================================
-
-!2:: {
-    Send("^c")
-    Sleep(100)
-    global Clipextra := ClipboardAll()
-    Sleep(100)
-}
-
-!v:: {
-    global Clipextra
-    A_Clipboard := Clipextra
-    ClipWait()
-    Send("^v")
-}
-
-; ====================================================================
-; CLIPBOARD MONITORING TOGGLE (Ctrl+Alt+Shift+C)
-; ====================================================================
-
-^!+c:: {
-    global PK_CLIPBOARD_MONITORING_ENABLED
-    PK_CLIPBOARD_MONITORING_ENABLED := !PK_CLIPBOARD_MONITORING_ENABLED
-    if (PK_CLIPBOARD_MONITORING_ENABLED) {
-        OnClipboardChange(PK_HandleClipboard)
-        ToolTip("PK_PROMPT monitoring ENABLED")
+^!i:: {
+    global PK_INSANO_MODE
+    PK_INSANO_MODE := !PK_INSANO_MODE
+    if (PK_INSANO_MODE) {
+        ShowTip("🔥 INSANO MODE ON 🔥`nAuto-apply enabled", 1500)
+        SoundBeep(1000, 100)
     } else {
-        OnClipboardChange(PK_HandleClipboard, 0)  ; Turn off monitoring
-        ToolTip("PK_PROMPT monitoring DISABLED")
+        ShowTip("Insano Mode OFF", 1000)
+        SoundBeep(500, 100)
     }
-    SetTimer(RemoveToolTip, -1500)
-}
-
-RemoveToolTip() {
-    ToolTip()
 }
 
 ; ====================================================================
 ; RAW-TO-PROMPT TOOL INTEGRATION
-; ====================================================================
-
-; Shift+Alt+RButton → Launch Raw-to-Prompt with selection
-+!RButton:: {
-    global RAW_TO_PROMPT_DIR, RAW_TO_PROMPT_MAIN, PROMPTOPT_LAUNCH_DELAY
-    
-    ; Validate RAW_TO_PROMPT path before proceeding
-    if (!FileExist(RAW_TO_PROMPT_DIR)) {
-        ShowErrorTip("RAW_TO_PROMPT_DIR not found: " . RAW_TO_PROMPT_DIR)
-        return
-    }
-    if (!FileExist(RAW_TO_PROMPT_MAIN)) {
-        ShowErrorTip("RAW_TO_PROMPT_MAIN not found: " . RAW_TO_PROMPT_MAIN)
-        return
-    }
-
-    ; Check if Python is available by trying to run it
-    pythonFound := false
-    try {
-        RunWait("python --version",, "Hide")
-        pythonFound := true
-    } catch {
-        ; Try python3 as fallback
-        try {
-            RunWait("python3 --version",, "Hide")
-            pythonFound := true
-        }
-    }
-    if (!pythonFound) {
-        ShowErrorTip("Python not found. Please ensure Python is installed and in PATH.")
-        return
-    }
-
-    ; Save current clipboard
-    ClipSaved := SaveClipboard()
-    ; Copy selected text
-    Send("^c")
-    Sleep(PROMPTOPT_LAUNCH_DELAY)
-    ; Check if we got text and launch Raw-to-Prompt tool
-    if (A_Clipboard != "") {
-        ; Launch Raw-to-Prompt tool from the configured directory
-        Run('python "' . RAW_TO_PROMPT_MAIN . '"', RAW_TO_PROMPT_DIR)
-        Sleep(PROMPTOPT_LAUNCH_DELAY)
-    } else {
-        ; No text selected, just launch the tool
-        Run('python "' . RAW_TO_PROMPT_MAIN . '"', RAW_TO_PROMPT_DIR)
-    }
-}
-
-; Alt+RButton → Copy (Ctrl+C)
-!RButton::Send("^c")
-
-; Alt+LButton → Paste (Ctrl+V)
-!LButton::Send("^v")
-
-; ====================================================================
-; PROMPTOPT QUICK TRIGGERS (Hotstrings / Context Menu)
-; ====================================================================
-
-; PK_PROMPT hotstring → launch inline PromptOpt dialog
-:*R:PK_PROMPT::PK_HotstringLaunch()
-
-; ???? + space → optimize entire active field
-:*?:????::PK_HandleQuadQuestionHotstring(A_EndChar)
-
-; Ctrl+Alt+AppsKey → PromptOpt context menu
-^!AppsKey::PK_ShowPromptOptMenu()
-
-; Ctrl+Alt+Shift+P → PromptOpt context menu (keyboard friendly)
-^!+p::PK_ShowPromptOptMenu()
-
-; ====================================================================
-; PROMPTOPT HOTKEYS (Primary Functionality)
-; ====================================================================
-
-; Ctrl+Alt+P → Launch PromptOpt
-^!p::PromptOpt_Run()
-
-; Ctrl+Alt+XButton1 → Launch PromptOpt
-^!XButton1::PromptOpt_Run()
-
-; ====================================================================
-; CLIPBOARD UTILITIES
-; ====================================================================
-
-; Ctrl+Shift+XButton2 → Flatten clipboard to single line
-^+XButton2::FlattenClipboard()
+; ...
 
 ; ====================================================================
 ; HELPER FUNCTIONS (Template-specific)
 ; ====================================================================
 
+; Ctrl+Alt+F → Formatter Ability Menu
+^!f::PK_ShowFormatterMenu()
+
+; ====================================================================
+; HELPER FUNCTIONS (Template-specific)
+; ====================================================================
+
+PK_ShowFormatterMenu() {
+    templates := PK_GetFormatterTemplates()
+    if (templates.Length = 0) {
+        ShowErrorTip("No formatter templates found.")
+        return
+    }
+
+    fmtGui := Gui(, "Formatter Templates")
+    fmtGui.SetFont("s10", "Segoe UI")
+    fmtGui.Add("Text",, "Pick a formatter and press Run (dropdown is scrollable):")
+    
+    names := []
+    for t in templates
+        names.Push(t.Name)
+
+    dd := fmtGui.Add("DropDownList", "w320 Choose1 vFmtDD", names)
+    
+    RunSelected(*) {
+        idx := dd.Value
+        if (idx < 1 || idx > templates.Length)
+            return
+        fmtGui.Destroy()
+        PK_RunFormatterTemplate(templates[idx])
+    }
+    
+    btnRun := fmtGui.Add("Button", "x+10 w80 Default", "Run")
+    btnRun.OnEvent("Click", RunSelected)
+    btnCancel := fmtGui.Add("Button", "x+5 w80", "Cancel")
+    btnCancel.OnEvent("Click", (*) => fmtGui.Destroy())
+
+    fmtGui.Show()
+}
+
+PK_GetFormatterTemplates() {
+    list := []
+    abilityFile := A_ScriptDir . "\promptopt\Ability_Formatter.md"
+    if (!FileExist(abilityFile)) {
+        return list
+    }
+
+    try {
+        content := FileRead(abilityFile, "UTF-8")
+        sections := StrSplit(content, "## ")
+        for section in sections {
+            if (A_Index = 1)
+                continue
+            lines := StrSplit(section, "`n", "`r", 2)
+            if (lines.Length >= 2) {
+                title := Trim(lines[1])
+                body := Trim(lines[2])
+                if (title != "" && body != "") {
+                    list.Push({Name: title, Text: body})
+                }
+            }
+        }
+    }
+    return list
+}
+
+PK_RunFormatterTemplate(tmpl) {
+    customFile := A_Temp . "\promptopt_custom_" . A_TickCount . ".txt"
+    try FileDelete(customFile)
+    try FileAppend(tmpl.Text, customFile, "UTF-8")
+    
+    args := " --profile custom --model relace/relace-apply-3 --custom-prompt-file " . customFile
+    
+    global PK_INSANO_MODE
+    if (PK_INSANO_MODE) {
+        args .= " --insano"
+    }
+    
+    ShowTip("Formatting with " . tmpl.Name . "...", 1000)
+    
+    script := A_ScriptDir . "\promptopt\promptopt.ahk"
+    if (!TryRunWithAHKv2(script, args)) {
+        ShowErrorTip("Failed to launch PromptOpt")
+    }
+}
+
 PromptOpt_Run() {
+    global PK_INSANO_MODE
+    
     ; Visual ping to confirm hotkey fired
-    ShowTip("PromptOpt: launching...", 800)
+    if (PK_INSANO_MODE) {
+        ShowTip("🔥 PromptOpt (INSANO)...", 800)
+    } else {
+        ShowTip("PromptOpt: launching...", 800)
+    }
 
     ; Try to run with AHK v2 first
     script := A_ScriptDir . "\promptopt\promptopt.ahk"
-    if (TryRunWithAHKv2(script)) {
+    
+    ; Add --insano flag if mode is active
+    args := ""
+    if (PK_INSANO_MODE) {
+        args := " --insano"
+    }
+    
+    if (TryRunWithAHKv2(script, args)) {
         return
     }
 
@@ -302,32 +267,50 @@ FlattenClipboard() {
 ; Function: ShowTip(msg, durationMs := 0, x := "", y := "")
 ; Purpose : Shows a tooltip with optional auto-hide timer
 ; -------------------------------------------------------------------
-ShowTip(msg, durationMs := 0, x := "", y := "") {
-    if (x != "" && y != "") {
-        ToolTip(msg, x, y)
-    } else {
-        ToolTip(msg)
+ShowTip(msg, durationMs := 0, x := "", y := "")
+{
+    if (x = "" || y = "")
+    {
+        MouseGetPos(&mx, &my)
+        if (x = "")
+        {
+            x := mx + 12
+        }
+        if (y = "")
+        {
+            y := my + 12
+        }
     }
-    if (durationMs > 0) {
+    ToolTip(msg, x, y)
+    if (durationMs > 0)
+    {
         SetTimer(RemoveToolTip, -durationMs)
     }
 }
 
+RemoveToolTip(*)
+{
+    ToolTip()
+}
+
 ; -------------------------------------------------------------------
 ; Function: GetSelectionText(timeoutMs := 0)
-; Purpose : Copies current selection and returns the text
+; Purpose : Copies selection with a guard and returns the text
 ; -------------------------------------------------------------------
-GetSelectionText(timeoutMs := 0) {
+GetSelectionText(timeoutMs := 0)
+{
     global PK_CLIPBOARD_GUARD, CLIPBOARD_TIMEOUT
     prevGuard := PK_CLIPBOARD_GUARD
     PK_CLIPBOARD_GUARD := true
-    if (timeoutMs <= 0) {
+    if (timeoutMs <= 0)
+    {
         timeoutMs := CLIPBOARD_TIMEOUT
     }
     ClipSaved := SaveClipboard()
     A_Clipboard := ""
     Send("^c")
-    if (!ClipWait(timeoutMs/1000)) {
+    if (!ClipWait(timeoutMs/1000))
+    {
         RestoreClipboard(ClipSaved)
         PK_CLIPBOARD_GUARD := prevGuard
         return ""
@@ -624,15 +607,15 @@ ShowErrorTip(msg, durationMs := 0) {
 ; Purpose : Attempts to run a script with AutoHotkey v2
 ;           Returns true if launched successfully, false otherwise
 ; -------------------------------------------------------------------
-TryRunWithAHKv2(script) {
+TryRunWithAHKv2(script, args := "") {
     global AHK_V2_PATH_A, AHK_V2_PATH_B
     ; Check common AHK v2 installation paths
     if FileExist(AHK_V2_PATH_A) {
-        Run('"' . AHK_V2_PATH_A . '" "' . script . '"')
+        Run('"' . AHK_V2_PATH_A . '" "' . script . '"' . args)
         return true
     }
     if FileExist(AHK_V2_PATH_B) {
-        Run('"' . AHK_V2_PATH_B . '" "' . script . '"')
+        Run('"' . AHK_V2_PATH_B . '" "' . script . '"' . args)
         return true
     }
     ; If neither path exists, return false to trigger fallback
@@ -704,11 +687,6 @@ HandlePromptOptOutput(tempOut, ClipSaved) {
         outText := FileRead(tempOut, "UTF-8")
     } catch {
         ShowErrorTip("Failed to read output file.")
-        RestoreClipboard(ClipSaved)
-        return
-    }
-    if (outText = "") {
-        ShowErrorTip("PromptOpt produced empty output.")
         RestoreClipboard(ClipSaved)
         return
     }
@@ -907,3 +885,40 @@ PK_ProcessResult(tempOut, tempLog, ClipSaved, tempSel := "") {
 ; ====================================================================
 ; END OF TEMPLATE.AHK
 ; ====================================================================
+
+; -------------------------------------------------------------------
+; Function: SaveClipboard()
+; Purpose : Saves current clipboard content
+; -------------------------------------------------------------------
+SaveClipboard() {
+    return ClipboardAll()
+}
+
+; -------------------------------------------------------------------
+; Function: RestoreClipboard(clipData)
+; Purpose : Restores saved clipboard content
+; -------------------------------------------------------------------
+RestoreClipboard(clipData) {
+    A_Clipboard := clipData
+}
+
+; -------------------------------------------------------------------
+; Function: SendHotstringText(text)
+; Purpose : Sends text safely for hotstring replacement
+; -------------------------------------------------------------------
+SendHotstringText(text) {
+    ; Use clipboard for large text to be faster and more reliable
+    if (StrLen(text) > 50) {
+        ClipSaved := SaveClipboard()
+        A_Clipboard := text
+        if (ClipWait(0.5)) {
+            Send("^v")
+            Sleep(100)
+        } else {
+            SendText(text)
+        }
+        RestoreClipboard(ClipSaved)
+    } else {
+        SendText(text)
+    }
+}

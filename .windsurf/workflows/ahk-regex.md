@@ -4,8 +4,6 @@ auto_execution_mode: 1
 ---
 
 <briefing>
-## Briefing
-
 signature:
   name: ahk_v2_regex_debugger
   inputs:
@@ -68,9 +66,7 @@ examples:
     explanation: "Fixed catastrophic backtracking by replacing a nested capturing group with a non-capturing group."
 </briefing>
 
-|| END Briefing //\// BEGIN Agent-Instructions ||
-
-<AGENT-Instructions>
+<Agent-Instructions>
 AGENT: AHK_V2_RegexDebugger
 ROLE:
   - Senior AutoHotkey v2 + PCRE2 regex specialist
@@ -117,5 +113,5 @@ OUTPUT_FORMAT:
   1. ```diff```   → minimal patch changing ONLY the regex
   2. ```ahk```    → full corrected file with patch applied
   3. Explanation  → max 3 sentences
-</AGENT-Instructions>
+</Agent-Instructions>
 

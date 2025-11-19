@@ -34,6 +34,11 @@ model := EnvGet("OPENAI_MODEL") ? EnvGet("OPENAI_MODEL") : "openai/gpt-oss-120b"
 profile := args.Has("profile") ? args["profile"] : (EnvGet("PROMPTOPT_PROFILE") ? EnvGet("PROMPTOPT_PROFILE") : "browser")
 skipPickers := args.Has("skip-pickers")
 
+; Override Custom Prompt File if provided
+if (args.Has("custom-prompt-file")) {
+    CUSTOM_PROMPT_FILE := args["custom-prompt-file"]
+}
+
 ; Get Input Text
 inputText := ""
 if (args.Has("file")) {
@@ -103,11 +108,24 @@ if (!skipPickers && !args.Has("profile")) {
     
     ; Flag to skip the CLI input box
     pickerUsed := true
+    
+    ; Update Insano flag based on picker selection
+    if (selected.HasOwnProp("IsInsano")) {
+        args["insano"] := selected.IsInsano
+    }
 }
 
 ; Custom Profile Handling
 if (profile = "custom") {
-    if (!IsSet(pickerUsed)) {
+    ; Check if we already have content in CUSTOM_PROMPT_FILE (e.g. passed via arg)
+    hasPredefinedCustom := false
+    try {
+        if (FileGetSize(CUSTOM_PROMPT_FILE) > 0) {
+            hasPredefinedCustom := true
+        }
+    }
+
+    if (!IsSet(pickerUsed) && !hasPredefinedCustom) {
         ; Pre-load prompts for cycling (CLI mode)
         g_CustomPrompts := LoadMetaPromptContents()
         g_CustomPromptIndex := 0
@@ -132,7 +150,8 @@ if (profile = "custom") {
 }
 
 ; Run PromptOpt (PowerShell Bridge)
-RunPromptOpt(mode, model, profile)
+isInsano := args.Has("insano") || (EnvGet("PROMPTOPT_INSANO") == "1")
+RunPromptOpt(mode, model, profile, isInsano)
 
 
 ; ====================================================================
@@ -160,7 +179,7 @@ CycleProfilePicker(direction) {
             return
         
         listItems := g_DDLProfile.ItemsArray
-        currentText := g_DDLProfile.Text
+        currentText := GetSelectedControlText(g_DDLProfile)
         currentIndex := 0
         
         for i, item in listItems {
@@ -216,6 +235,21 @@ CycleCustomPrompt(direction) {
     SetTimer(() => ToolTip(), -1000)
 }
 
+GetSelectedControlText(ctrl) {
+    try {
+        txt := ctrl.Text
+        if (txt != "")
+            return txt
+    }
+    try {
+        idx := ctrl.Value
+        if (HasProp(ctrl, "ItemsArray") && idx >= 1 && idx <= ctrl.ItemsArray.Length) {
+            return ctrl.ItemsArray[idx]
+        }
+    }
+    return ""
+}
+
 ; ====================================================================
 ; FUNCTIONS
 ; ====================================================================
@@ -252,17 +286,24 @@ GetSelectionText() {
 
 GetAvailableProfiles() {
     profiles := []
+    formatterProfiles := LoadFormatterTemplates()
+    for fmt in formatterProfiles {
+        profiles.Push(fmt.Name)
+    }
+
+    metaFound := false
     if (DirExist(META_PROMPT_DIR)) {
-        Loop Files, META_PROMPT_DIR . "\Meta_Prompt.*.md"
-        {
+        Loop Files, META_PROMPT_DIR . "\Meta_Prompt.*.md" {
             if (RegExMatch(A_LoopFileName, "i)Meta_Prompt\.([^.]+)\.md", &match)) {
                 profileName := match[1]
-                if (profileName != "md") 
+                if (profileName != "md") {
                     profiles.Push(StrTitle(profileName))
+                    metaFound := true
+                }
             }
         }
     }
-    if (profiles.Length = 0) {
+    if (!metaFound) {
         profiles := ["Browser", "Coding", "Writing", "RAG", "General"]
     }
     hasCustom := false
@@ -277,6 +318,11 @@ GetAvailableProfiles() {
 
 LoadMetaPromptContents() {
     prompts := []
+    formatterProfiles := LoadFormatterTemplates()
+    for fmt in formatterProfiles {
+        prompts.Push({Name: fmt.Name, Text: fmt.Text})
+    }
+
     if (DirExist(META_PROMPT_DIR)) {
         ; We look for specific meta prompt files to offer as templates
         Loop Files, META_PROMPT_DIR . "\Meta_Prompt*.md"
@@ -297,7 +343,39 @@ LoadMetaPromptContents() {
             }
         }
     }
+    
     return prompts
+}
+
+LoadFormatterTemplates() {
+    formatterPrompts := []
+    formatterFile := SCRIPT_DIR . "\Ability_Formatter.md"
+    if (!FileExist(formatterFile)) {
+        return formatterPrompts
+    }
+
+    try {
+        content := FileRead(formatterFile, "UTF-8")
+        sections := StrSplit(content, "## ")
+        
+        for section in sections {
+            if (A_Index == 1)
+                continue
+            
+            lines := StrSplit(section, "`n", "`r", 2)
+            if (lines.Length >= 2) {
+                title := Trim(lines[1])
+                body := Trim(lines[2])
+                
+                if (title != "" && body != "") {
+                    formatterPrompts.Push({Name: "Formatter: " . title, Text: body})
+                }
+            }
+        }
+    } catch {
+        ; ignore formatter loading errors to avoid breaking picker
+    }
+    return formatterPrompts
 }
 
 ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
@@ -310,7 +388,7 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     guiPicker.Add("Text",, "Select Profile (Ctrl+Shift+Wheel to cycle):")
     
     profileList := GetAvailableProfiles()
-    g_DDLProfile := guiPicker.Add("DropDownList", "w400 Choose1", profileList)
+    g_DDLProfile := guiPicker.Add("ListBox", "w320 r14 Choose1 vDDLProfile", profileList)
     g_DDLProfile.ItemsArray := profileList
     
     ; -- Split View: System Prompt (Instructions) vs User Input (Content) --
@@ -332,7 +410,7 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     }
     
     UpdatePreview(*) {
-        selected := StrLower(g_DDLProfile.Text)
+        selected := StrLower(GetSelectedControlText(g_DDLProfile))
         text := ""
         
         if (promptMap.Has(selected)) {
@@ -349,9 +427,17 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     g_DDLProfile.OnEvent("Change", UpdatePreview)
     g_DDLProfile.UpdatePreviewFn := UpdatePreview 
     
-    try g_DDLProfile.Text := StrTitle(defaultProfile)
-    catch {
-        try g_DDLProfile.Choose(1)
+    try {
+        defaultChosen := false
+        for idx, name in profileList {
+            if (StrLower(name) = StrLower(StrTitle(defaultProfile))) {
+                g_DDLProfile.Choose(idx)
+                defaultChosen := true
+                break
+            }
+        }
+        if (!defaultChosen)
+            g_DDLProfile.Choose(1)
     }
     
     ; Initial update
@@ -366,14 +452,20 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     
     btnCopy := guiPicker.Add("Button", "x+10 w100", "Copy")
     btnCopy.OnEvent("Click", (*) => CopyPreview())
+
+    ; Insano Mode Toggle
+    global PK_INSANO_MODE
+    isInsanoDefault := (EnvGet("PROMPTOPT_INSANO") == "1") || (IsSet(PK_INSANO_MODE) && PK_INSANO_MODE)
+    chkInsano := guiPicker.Add("Checkbox", "x+20 Checked" . isInsanoDefault, "🔥 Insano Mode")
     
     isSubmitted := false
     
     SubmitPicker() {
-        selection.Profile := StrLower(g_DDLProfile.Text)
+        selection.Profile := StrLower(GetSelectedControlText(g_DDLProfile))
         selection.Model := ddlModel.Text
         selection.CustomText := editSystem.Value
         selection.UserText := editUser.Value
+        selection.IsInsano := chkInsano.Value
         isSubmitted := true
         guiPicker.Destroy()
     }
@@ -429,9 +521,9 @@ ShowCustomPromptInput(currentInput := "") {
     return isSubmitted ? result : false
 }
 
-RunPromptOpt(mode, model, profile) {
+RunPromptOpt(mode, model, profile, isInsano := false) {
     ; Check for Insano Mode
-    isInsano := EnvGet("PROMPTOPT_INSANO") == "1"
+    ; isInsano passed from args/env
     contextFile := ""
     
     if (isInsano) {
