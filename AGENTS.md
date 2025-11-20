@@ -301,3 +301,4 @@ None currently - the system uses text-based prompts and responses.
 - Keep secrets out of source where possible; prefer environment variables
 - The pipeline is resilient across OS components by using files for handoff and Python for network/JSON
 - All existing hotkeys and hotstrings must continue working after modularization (backwards compatibility)
+- Do not remove files; only delete helper or temporary text artifacts that were created as part of a process (e.g., scratch TODO notes you just generated)

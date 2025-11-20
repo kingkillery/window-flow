@@ -19,7 +19,8 @@
       "Bash(npm:*)",
       "Bash(pnpm run build:main)",
       "Bash($null)",
-      "Bash(Get-Command par -ErrorAction SilentlyContinue)"
+      "Bash(Get-Command par -ErrorAction SilentlyContinue)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []
