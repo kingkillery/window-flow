@@ -24,11 +24,13 @@ class CompatibleOpenAI(dspy.LM):
         self.api_base = api_base or "https://api.openai.com/v1"
         self.kwargs = kwargs
 
-        # Set default parameters
+        # Set deterministic defaults for formatting stability
         if "temperature" not in self.kwargs:
-            self.kwargs["temperature"] = 0.7
+            self.kwargs["temperature"] = 0.0
+        if "top_p" not in self.kwargs:
+            self.kwargs["top_p"] = 0.1
         if "max_tokens" not in self.kwargs:
-            self.kwargs["max_tokens"] = 2000
+            self.kwargs["max_tokens"] = 1200
 
     def basic_request(self, prompt, **kwargs):
         """Make a basic API request"""
@@ -96,6 +98,23 @@ def parse_formatter_file(file_path):
         formats[title] = body
         
     return formats
+
+def validate_formatted_output(text):
+    """Ensure output starts immediately and has no pre/post-amble."""
+    if text is None:
+        return False, "Output is None"
+    if text == "":
+        return False, "Output is empty"
+    if text[0].isspace():
+        return False, "Output starts with whitespace"
+    stripped = text.lstrip()
+    banned_prefixes = ("Below is", "Here is", "Here are", "Below are")
+    if any(stripped.startswith(pfx) for pfx in banned_prefixes):
+        return False, "Output starts with a preamble"
+    # Require first non-space to be a structural character or word character
+    if not re.match(r"^[\[{<\w]", stripped):
+        return False, "Output does not start with structured content"
+    return True, ""
 
 def main():
     parser = argparse.ArgumentParser(description="Optimize prompts using DSPy and strict formats.")
@@ -177,8 +196,9 @@ def main():
             model=args.model,
             api_key=api_key,
             api_base=api_base,
-            temperature=0.7,
-            max_tokens=2000
+            temperature=0.0,
+            top_p=0.1,
+            max_tokens=1200
         )
         print(f"Successfully initialized {provider_name} LM")
 
@@ -211,9 +231,15 @@ def main():
     try:
         # Use the configured LM directly - no need for context manager if already configured
         result = optimizer(raw_request=raw_request, format_definition=selected_format_body)
+        final_prompt = result.optimized_prompt
+
+        is_valid, reason = validate_formatted_output(final_prompt)
+        if not is_valid:
+            print(f"Validation failed: {reason}")
+            return
 
         print("\n--- Optimized Prompt ---\n")
-        print(result.optimized_prompt)
+        print(final_prompt)
         print("\n------------------------\n")
 
     except Exception as e:

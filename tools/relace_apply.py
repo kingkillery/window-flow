@@ -30,9 +30,6 @@ def relace_edit_tool(tool_input_json):
         if not path_str or not instruction or not edit_snippet:
             return "Error: Missing required fields (path, instruction, edit)."
 
-        # Sanity: upstream prompt should already wrap these, but guard anyway
-        if "<code>" not in edit_snippet or "<update>" not in edit_snippet:
-            return "Error: edit snippet missing <code> or <update> tags."
 
         # Normalize path (Handle Git Bash /c/ style if present)
         if path_str.startswith("/") and len(path_str) > 2 and path_str[2] == "/":
@@ -109,14 +106,35 @@ def relace_edit_tool(tool_input_json):
         
         if response.status_code == 200:
             result = response.json()
-            merged_code = result['choices'][0]['message']['content']
-            
+
+            if use_direct:
+                if isinstance(result, str):
+                    merged_code = result
+                else:
+                    merged_code = (
+                        result.get("merged_code")
+                        or result.get("updated_code")
+                        or result.get("code")
+                        or result.get("content")
+                    )
+            else:
+                merged_code = result["choices"][0]["message"]["content"]
+
             if not merged_code:
                 return "Error: API returned empty content."
 
             # Sanity check: avoid empty/None responses overwriting files
-            if not merged_code.strip():
+            merged_code_stripped = merged_code.strip()
+            if not merged_code_stripped:
                 return "Error: API returned empty content."
+
+            # Guard against runaway outputs unless explicitly allowed
+            allow_bloat = os.environ.get("RELACE_ALLOW_BLOAT") == "1"
+            if (len(merged_code) > len(initial_code) * 2) and not allow_bloat:
+                return (
+                    "Error: Refusing to apply changes because merged output is more than "
+                    "2x the original size. Set RELACE_ALLOW_BLOAT=1 to override."
+                )
 
             # 4. Generate Diff
             diff = "".join(
@@ -130,7 +148,7 @@ def relace_edit_tool(tool_input_json):
 
             # 5. Write changes
             file_path.write_text(merged_code, encoding="utf-8")
-            
+
             if diff:
                 return f"Applied code changes using Relace API.\n\nChanges made:\n{diff}"
             else:

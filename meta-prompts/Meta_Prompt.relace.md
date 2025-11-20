@@ -26,6 +26,8 @@ Given a user’s high‑level modification request, produce a complete `RelaceEd
 - The `instruction` must be ≤ 120 characters, written in first‑person present tense.
 - The `edit` must be a valid code fragment for the target language; use language‑specific comment syntax.
 - Ensure the JSON is syntactically valid and can be parsed directly by the tool.
+- The response must start with `{` (no BOM, no leading whitespace) and must not contain pre/post‑amble such as “Below is/Here is…”.
+- Enforce shape: `re.match(r'^{\"path\".*\"edit\".*}', response)` must succeed.
 
 # Output Format
 ```json
