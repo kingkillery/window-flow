@@ -19,7 +19,7 @@ Given a user’s high‑level modification request, produce a complete `RelaceEd
 
 4. **Return the payload** as a JSON object **only** (no surrounding prose).
 
-# Constraints
+# Constraints (format must be exact)
 - Do **not** include any code that remains unchanged outside of the placeholder comments.
 - Do **not** add explanatory text, greetings, or markdown fences around the JSON.
 - The `path` must be an absolute POSIX path (e.g., `/app/src/utils.py`).
