@@ -2,6 +2,7 @@ import sys
 import json
 import os
 import requests
+import time
 import difflib
 from pathlib import Path
 
@@ -29,6 +30,10 @@ def relace_edit_tool(tool_input_json):
         if not path_str or not instruction or not edit_snippet:
             return "Error: Missing required fields (path, instruction, edit)."
 
+        # Sanity: upstream prompt should already wrap these, but guard anyway
+        if "<code>" not in edit_snippet or "<update>" not in edit_snippet:
+            return "Error: edit snippet missing <code> or <update> tags."
+
         # Normalize path (Handle Git Bash /c/ style if present)
         if path_str.startswith("/") and len(path_str) > 2 and path_str[2] == "/":
              path_str = path_str[1] + ":" + path_str[2:]
@@ -50,27 +55,34 @@ def relace_edit_tool(tool_input_json):
         except Exception as e:
             return f"Error reading file {file_path}: {e}"
 
-        # 3. Prepare OpenRouter Request
-        # We use the OpenRouter/OpenAI-compatible endpoint as the bridge.
+        # 3. Prepare Relace Apply request (OpenRouter by default; optional direct endpoint)
         api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("PROMPTOPT_API_KEY")
         if not api_key:
             return "Error: Missing API Key. Set OPENROUTER_API_KEY or PROMPTOPT_API_KEY."
 
-        url = "https://openrouter.ai/api/v1/chat/completions"
-        
-        # XML Construction for Relace Apply 3
-        user_content = f"<instruction>{instruction}</instruction>\n<code>{initial_code}</code>\n<update>{edit_snippet}</update>"
-
-        payload = {
-            "model": "relace/relace-apply-3",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": user_content
-                }
-            ],
-            "temperature": 0.0
-        }
+        use_direct = os.environ.get("RELACE_USE_DIRECT") == "1"
+        if use_direct:
+            url = "https://instantapply.endpoint.relace.run/v1/code/apply"
+            payload = {
+                "initial_code": initial_code,
+                "edit_snippet": edit_snippet,
+                "instruction": instruction,
+                "model": "relace-apply-3",
+                "stream": False,
+            }
+        else:
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            user_content = f"<instruction>{instruction}</instruction>\n<code>{initial_code}</code>\n<update>{edit_snippet}</update>"
+            payload = {
+                "model": "relace/relace-apply-3",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": user_content
+                    }
+                ],
+                "temperature": 0.0
+            }
 
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -80,14 +92,30 @@ def relace_edit_tool(tool_input_json):
         }
 
         print(f"Applying changes to {file_path}...", file=sys.stderr)
-        
-        response = requests.post(url, headers=headers, json=payload)
+
+        # Basic retry for transient 429/5xx
+        def post_with_retry():
+            backoff = 1.0
+            for attempt in range(3):
+                resp = requests.post(url, headers=headers, json=payload, timeout=30)
+                if resp.status_code in (429, 500, 502, 503, 504):
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                return resp
+            return resp
+
+        response = post_with_retry()
         
         if response.status_code == 200:
             result = response.json()
             merged_code = result['choices'][0]['message']['content']
             
             if not merged_code:
+                return "Error: API returned empty content."
+
+            # Sanity check: avoid empty/None responses overwriting files
+            if not merged_code.strip():
                 return "Error: API returned empty content."
 
             # 4. Generate Diff

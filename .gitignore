@@ -15,6 +15,7 @@ tmp_*.txt
 *_live.log
 *_sel_live.txt
 *_out_live.txt
+promptopt/debug_output.txt
 
 node_modules
 dist
