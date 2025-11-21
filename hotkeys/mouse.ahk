@@ -7,11 +7,11 @@ SetWorkingDir A_ScriptDir
 ; # Purpose: Mouse button remapping and combinations                 #
 ; ####################################################################
 
-; XButton2 (mouse forward button) → Enter
+; XButton2 (mouse forward button) → Enter (with wildcards to avoid conflicts)
 XButton2::
 {
-    ; SendKeySequence("{LWin down}{Alt down}t{Alt up}{LWin up}")
-    Send "{Enter}"
+    ; Use SendInput to avoid conflicts with normal Enter key operation
+    SendInput "{Enter}"
 }
 
 ; XButton1 (mouse back button) → Ctrl+Win+Space (emoji picker)

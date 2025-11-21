@@ -2,6 +2,10 @@
 SendMode("Input")
 SetWorkingDir(A_ScriptDir)
 
+; Load core environment and secrets
+#Include "core/environment.ahk"
+LoadDotEnv()
+
 ; Tool paths - Configurable via environment variable with fallback
 envRawToPromptDir := EnvGet("RAW_TO_PROMPT_DIR")
 if (envRawToPromptDir = "") {
@@ -40,6 +44,12 @@ if (PK_CLIPBOARD_MONITORING_ENABLED) {
 #Include "hotkeys/mouse.ahk"
 #Include "hotkeys/media.ahk"
 
+; Load hotstring modules
+#Include "hotstrings/api-keys.ahk"
+#Include "hotstrings/general.ahk"
+#Include "hotstrings/role-task-constraint.ahk"
+#Include "hotstrings/templates.ahk"
+
 ; ====================================================================
 ; INSANO MODE TOGGLE (Ctrl+Alt+I)
 ; ====================================================================
@@ -66,6 +76,9 @@ if (PK_CLIPBOARD_MONITORING_ENABLED) {
 
 ; Ctrl+Alt+F → Formatter Ability Menu
 ^!f::PK_ShowFormatterMenu()
+
+; Ctrl+Alt+P → PromptOpt
+^!p::PromptOpt_Run()
 
 ; ====================================================================
 ; HELPER FUNCTIONS (Template-specific)
@@ -389,13 +402,37 @@ CreateTempFile(prefix := "temp_", extension := ".txt") {
 ; -------------------------------------------------------------------
 ShowPromptOptWindow(text) {
     global PromptOptGui
+
+    ; Get current mouse position for window placement
+    MouseGetPos(&mouseX, &mouseY)
+
+    ; Calculate window position (ensure it fits on screen)
+    windowWidth := 900
+    windowHeight := 640  ; Approximate height including buttons
+    screenWidth := A_ScreenWidth
+    screenHeight := A_ScreenHeight
+
+    ; Position window near mouse, ensuring it stays on screen
+    x := mouseX - (windowWidth // 2)  ; Center horizontally on mouse
+    y := mouseY + 20  ; Place slightly below mouse cursor
+
+    ; Adjust if window would go off-screen
+    if (x < 0)
+        x := 0
+    if (x + windowWidth > screenWidth)
+        x := screenWidth - windowWidth
+    if (y < 0)
+        y := 0
+    if (y + windowHeight > screenHeight)
+        y := mouseY - windowHeight - 20  ; Place above mouse instead
+
     PromptOptGui := Gui("+AlwaysOnTop +Resize", "PromptOpt Result")
     PromptOptGui.PO_Edit := PromptOptGui.Add("Edit", "w900 h560 ReadOnly", text)
     PromptOptGui.Add("Button", "w110", "Save...").OnEvent("Click", PO_SaveSection)
     PromptOptGui.Add("Button", "x+8 w130", "Open in Notepad").OnEvent("Click", PO_OpenSection)
     PromptOptGui.Add("Button", "x+8 w90", "Copy").OnEvent("Click", PO_CopySection)
     PromptOptGui.Add("Button", "x+8 w90", "Close").OnEvent("Click", PO_CloseSection)
-    PromptOptGui.Show()
+    PromptOptGui.Show("x" . x . " y" . y)
 }
 
 PO_CopySection(*) {
@@ -883,42 +920,22 @@ PK_ProcessResult(tempOut, tempLog, ClipSaved, tempSel := "") {
 }
 
 ; ====================================================================
-; END OF TEMPLATE.AHK
+; MOUSE HOTKEYS
 ; ====================================================================
 
-; -------------------------------------------------------------------
-; Function: SaveClipboard()
-; Purpose : Saves current clipboard content
-; -------------------------------------------------------------------
-SaveClipboard() {
-    return ClipboardAll()
-}
+; Alt+RButton → Copy (Ctrl+C)
+!RButton::Send("^c")
 
-; -------------------------------------------------------------------
-; Function: RestoreClipboard(clipData)
-; Purpose : Restores saved clipboard content
-; -------------------------------------------------------------------
-RestoreClipboard(clipData) {
-    A_Clipboard := clipData
-}
+; Alt+LButton → Paste (Ctrl+V)
+!LButton::Send("^v")
 
-; -------------------------------------------------------------------
-; Function: SendHotstringText(text)
-; Purpose : Sends text safely for hotstring replacement
-; -------------------------------------------------------------------
-SendHotstringText(text) {
-    ; Use clipboard for large text to be faster and more reliable
-    if (StrLen(text) > 50) {
-        ClipSaved := SaveClipboard()
-        A_Clipboard := text
-        if (ClipWait(0.5)) {
-            Send("^v")
-            Sleep(100)
-        } else {
-            SendText(text)
-        }
-        RestoreClipboard(ClipSaved)
-    } else {
-        SendText(text)
-    }
-}
+; ====================================================================
+; KEYBOARD SAFEGUARDS
+; ====================================================================
+
+; Ensure Enter key works normally (override any potential conflicts)
+Enter::Send("{Enter}")
+
+; ====================================================================
+; END OF TEMPLATE.AHK
+; ====================================================================
