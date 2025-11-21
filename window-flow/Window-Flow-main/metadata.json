@@ -1,7 +1,0 @@
-{
-  "name": "FocusFlow - Voice Window Controller",
-  "description": "A futuristic workflow utility that uses Gemini Live to switch between application contexts via voice commands and hotkeys. Manages URI schemes to simulate window control.",
-  "requestFramePermissions": [
-    "microphone"
-  ]
-}

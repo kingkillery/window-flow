@@ -7,11 +7,11 @@ SetWorkingDir A_ScriptDir
 ; # Purpose: Media playback and volume control via mouse/keyboard    #
 ; ####################################################################
 
-; Ctrl+Alt+Wheel Down → Volume Down by 10
-^!WheelDown::SoundSetVolume -10
+; Ctrl+Alt+Shift+Wheel Down → Volume Down by 10
+^!+WheelDown::SoundSetVolume -10
 
-; Ctrl+Alt+Wheel Up → Volume Up by 10
-^!WheelUp::SoundSetVolume +10
+; Ctrl+Alt+Shift+Wheel Up → Volume Up by 10
+^!+WheelUp::SoundSetVolume +10
 
 ; Ctrl+Alt+MButton → Media Play/Pause
 ^!MButton::Media_Play_Pause

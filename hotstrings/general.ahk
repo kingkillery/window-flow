@@ -112,8 +112,8 @@ ShowHotkeysMenu() {
     HK.Add("Text",, "Hotkeys (keyboard/mouse)")
     LV := HK.Add("ListView", "w720 h420 Grid", ["Hotkey", "Module", "Action"])
     ; Media
-    LV.Add(, "^!WheelDown", "hotkeys/media.ahk", "Volume -10")
-    LV.Add(, "^!WheelUp", "hotkeys/media.ahk", "Volume +10")
+    LV.Add(, "^!+WheelDown", "hotkeys/media.ahk", "Volume -10")
+    LV.Add(, "^!+WheelUp", "hotkeys/media.ahk", "Volume +10")
     LV.Add(, "^!MButton", "hotkeys/media.ahk", "Media Play/Pause")
     LV.Add(, "^!RButton", "hotkeys/media.ahk", "Next Track")
     LV.Add(, "^!LButton", "hotkeys/media.ahk", "Previous Track")
