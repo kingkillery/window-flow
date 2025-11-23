@@ -232,7 +232,8 @@ UpdateDashboardSlot(index) {
     bgColor := (nameText != "Empty") ? "0x2a2a2a" : "0x1a1a1a"
     hasUnderline := (nameText != "Empty")
 
-    g_Slots[index].GuiText.Opt("c" color " Background" bgColor . (hasUnderline ? " Underline" : ""))
+    g_Slots[index].GuiText.Opt("c" color " Background" bgColor)
+    g_Slots[index].GuiText.SetFont((hasUnderline ? "Underline" : "Norm"))
     g_Slots[index].GuiCheck.Value := g_Slots[index].saved
     g_Slots[index].GuiMonBtn.Text := GetMonitorLabel(g_Slots[index].monitor)
 
