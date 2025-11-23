@@ -105,83 +105,73 @@ CreateDashboard() {
     global g_DashboardGui, g_Slots
 
     g_DashboardGui := Gui("+AlwaysOnTop -MinimizeBox -MaximizeBox", APP_NAME)
-    g_DashboardGui.BackColor := "0x1a1a1a"
-    g_DashboardGui.MarginX := 15
-    g_DashboardGui.MarginY := 15
-
-    ; Set default font with white text for readability
-    g_DashboardGui.SetFont("s10 cFFFFFF", "Segoe UI")
-
-    g_DashboardGui.SetFont("s14 Bold c00f3ff")
-    g_DashboardGui.Add("Text", "x0 y10 w500 Center", "Window-Flow Dynamic")
-
-    g_DashboardGui.SetFont("s9 cAAAAAA")
-    g_DashboardGui.Add("Text", "x0 y35 w500 Center", "Assign windows to slots. Use " WHEEL_MODIFIER " + Wheel to switch. Click names to activate. Press 1-6, R to refresh.")
-
-    ; Separator
-    g_DashboardGui.SetFont("s10 cFFFFFF")
-    g_DashboardGui.Add("Text", "x0 y60 w500 h1 Background0x444444")
-
-    ; Column Headers with Refresh button
-    g_DashboardGui.SetFont("s9 c888888")
-    g_DashboardGui.Add("Text", "x20 y70 w40", "Slot")
-    g_DashboardGui.Add("Text", "x70 y70 w160", "Application")
-    g_DashboardGui.Add("Text", "x240 y70 w80 Center", "Monitor")
-    g_DashboardGui.Add("Text", "x330 y70 w60", "Action")
-    g_DashboardGui.Add("Text", "x400 y70 w60", "Persist")
-
-    ; Refresh button
-    g_DashboardGui.SetFont("s8 Bold c00f3ff")
-    btnRefresh := g_DashboardGui.Add("Button", "x460 y67 w30 h20 Background0x2a2a2a", "⟳")
-    btnRefresh.OnEvent("Click", (*) => RefreshDashboard())
-    btnRefresh.ToolTip := "Validate all windows and refresh status"
+    g_DashboardGui.BackColor := "0x101010"
+    g_DashboardGui.MarginX := 10
+    g_DashboardGui.MarginY := 10
+    
+    ; Header
+    g_DashboardGui.SetFont("s11 c00f3ff", "Segoe UI")
+    g_DashboardGui.Add("Text", "x20 y10 w600 h20", "Control Modules")
 
     Loop MAX_SLOTS {
         index := A_Index
-        ; INCREASED SPACING: 55px per row instead of 45
-        yPos := 95 + ((index-1) * 55)
+        yPos := 40 + ((index-1) * 95)
 
-        ; Slot Number (Bold)
-        g_DashboardGui.SetFont("s12 Bold c00f3ff")
-        slotLabel := g_DashboardGui.Add("Text", "x20 y" yPos+5 " w40", index)
+        ; === CARD BORDER (Cyan Outline) ===
+        ; Using Text controls to draw 1px borders
+        g_DashboardGui.Add("Text", "x10 y" yPos " w620 h1 Background0x00f3ff")      ; Top
+        g_DashboardGui.Add("Text", "x10 y" yPos+90 " w620 h1 Background0x00f3ff")    ; Bottom
+        g_DashboardGui.Add("Text", "x10 y" yPos " w1 h90 Background0x00f3ff")       ; Left
+        g_DashboardGui.Add("Text", "x630 y" yPos " w1 h91 Background0x00f3ff")      ; Right
 
-        ; Status/Name Text (Interactive - Click to activate)
-        nameText := g_Slots[index].name
-        color := (nameText = "Empty") ? "0x666666" : "0xffffff"
-        bgColor := (nameText != "Empty") ? "0x2a2a2a" : "0x1a1a1a"
+        ; === SLOT NUMBER ===
+        g_DashboardGui.SetFont("s42 Bold c00f3ff", "Segoe UI")
+        g_DashboardGui.Add("Text", "x20 y" yPos+12 " w60 Center Background0x101010", index)
 
-        g_DashboardGui.SetFont("s11 c" color " Underline")
-        nameControl := g_DashboardGui.Add("Text", "x70 y" yPos+5 " w160 h25 Background" bgColor " vSlotName" index " Center", nameText)
+        ; === WINDOW NAME DISPLAY ===
+        ; Read-only text box style
+        g_DashboardGui.SetFont("s10 cFFFFFF Norm", "Segoe UI")
+        
+        ; Background for name
+        nameBg := g_DashboardGui.Add("Text", "x90 y" yPos+12 " w360 h30 Background0x222222 +0x200", "")
+        
+        ; Actual Text (Overlay)
+        g_DashboardGui.SetFont("s10 cFFFFFF")
+        nameControl := g_DashboardGui.Add("Text", "x95 y" yPos+12 " w350 h30 BackgroundTrans +0x200 vSlotName" index, "Empty Slot")
+        
+        ; Click name to activate
+        nameControl.OnEvent("Click", ((i, *) => ActivateSlotFromDashboard(i)).Bind(index))
+        g_Slots[index].GuiText := nameControl
+        g_Slots[index].GuiTextBg := nameBg
 
-        ; Make clickable only if window is assigned
-        if (nameText != "Empty") {
-            nameControl.OnEvent("Click", ((i, *) => ActivateSlotFromDashboard(i)).Bind(index))
+        ; === SET TARGET BUTTON ===
+        ; Styled as a wide dark button
+        g_DashboardGui.SetFont("s9 Bold cFFFFFF")
+        btnSet := g_DashboardGui.Add("Button", "x90 y" yPos+50 " w360 h28", "[+] SET TARGET")
+        btnSet.OnEvent("Click", ((i, *) => StartCapture(i)).Bind(index))
+
+        ; === MONITOR TOGGLES ([A] [1] [2] [M]) ===
+        ; Using Text controls to simulate colored toggle buttons
+        g_Slots[index].GuiMonBtns := Map()
+        
+        MakeMonBtn(label, val, xOff) {
+            g_DashboardGui.SetFont("s9 Bold cFFFFFF")
+            ; Background
+            btn := g_DashboardGui.Add("Text", "x" (465 + xOff) " y" yPos+12 " w30 h30 Background0x333333 +0x200 Center", label)
+            btn.OnEvent("Click", ((i, v, *) => SetMonitorPref(i, v)).Bind(index, val))
+            return btn
         }
 
-        g_Slots[index].GuiText := nameControl
+        g_Slots[index].GuiMonBtns[0] := MakeMonBtn("[A]", 0, 0)
+        g_Slots[index].GuiMonBtns[1] := MakeMonBtn("[1]", 1, 35)
+        g_Slots[index].GuiMonBtns[2] := MakeMonBtn("[2]", 2, 70)
+        g_Slots[index].GuiMonBtns[99] := MakeMonBtn("[M]", 99, 105)
 
-        ; Monitor Button (Cycle)
-        monLabel := GetMonitorLabel(g_Slots[index].monitor)
-        g_DashboardGui.SetFont("s9 cE0E0E0")
-        btnMon := g_DashboardGui.Add("Button", "x240 y" yPos " w80 h28 Background0x2a2a2a", monLabel)
-        btnMon.OnEvent("Click", ((i, ctrl, *) => CycleMonitorPref(i, ctrl)).Bind(index))
-        g_Slots[index].GuiMonBtn := btnMon
-
-        ; Assign Button (Dark theme)
-        g_DashboardGui.SetFont("s9 Bold cFFFFFF")
-        btn := g_DashboardGui.Add("Button", "x330 y" yPos " w60 h28 Background0x333333", "Set")
-        btn.OnEvent("Click", ((i, *) => StartCapture(i)).Bind(index))
-
-        ; Save Checkbox (Styled)
-        g_DashboardGui.SetFont("s10 c0xffffff")
-        chk := g_DashboardGui.Add("Checkbox", "x410 y" yPos+5 " w80 vChk" index, "Save")
-        chk.Value := g_Slots[index].saved
+        ; === KEEP SAVED CHECKBOX ===
+        g_DashboardGui.SetFont("s10 c00f3ff")
+        chk := g_DashboardGui.Add("Checkbox", "x465 y" yPos+52 " w140 vChk" index, "Keep Saved")
         chk.OnEvent("Click", ((i, *) => ToggleSave(i)).Bind(index))
         g_Slots[index].GuiCheck := chk
-
-        ; Row Separator (Subtle)
-        if (index < MAX_SLOTS)
-            g_DashboardGui.Add("Text", "x20 y" yPos+45 " w460 h1 Background0x222222")
     }
 
     g_DashboardGui.OnEvent("Close", (*) => g_DashboardGui.Hide())
@@ -192,116 +182,77 @@ ToggleDashboard() {
     global g_DashboardGui
     if WinActive("ahk_id " g_DashboardGui.Hwnd) {
         g_DashboardGui.Hide()
-        SetTimer(CheckHover, 0) ; Stop hover check
     } else {
-        g_DashboardGui.Show("w500 AutoSize") ; Fixed width, auto height
-        SetTimer(CheckHover, 50) ; Start hover check
-        ; Auto-refresh window status when opening dashboard
+        g_DashboardGui.Show("w645 AutoSize")
         ValidateAllWindows()
-    }
-}
-
-CheckHover() {
-    global g_Slots, g_DashboardGui
-
-    try {
-        MouseGetPos(,,, &hCtrl, 2) ; Get HWND of control under mouse
-    } catch {
-        return
-    }
-
-    Loop MAX_SLOTS {
-        if !g_Slots.Has(A_Index) || !g_Slots[A_Index].HasProp("GuiText")
-            continue
-
-        ctrl := g_Slots[A_Index].GuiText
-        if (ctrl && ctrl.Hwnd == hCtrl)
-            OnWindowNameHover(A_Index, ctrl, true)
-        else if (ctrl)
-            OnWindowNameHover(A_Index, ctrl, false)
     }
 }
 
 UpdateDashboardSlot(index) {
     global g_Slots
-    g_Slots[index].GuiText.Value := g_Slots[index].name
+    slot := g_Slots[index]
+    
+    ; Update Name
+    slot.GuiText.Text := (slot.name == "Empty") ? "--- Empty Slot ---" : slot.name
+    
+    ; Update Name Color (Grey if empty, White if set)
+    if (slot.name == "Empty") {
+        slot.GuiText.Opt("c666666")
+        slot.GuiTextBg.Opt("Background0x222222")
+    } else {
+        slot.GuiText.Opt("cFFFFFF")
+        slot.GuiTextBg.Opt("Background0x333333")
+    }
 
-    ; Update appearance based on slot status
-    nameText := g_Slots[index].name
-    color := (nameText = "Empty") ? "0x666666" : "0xffffff"
-    bgColor := (nameText != "Empty") ? "0x2a2a2a" : "0x1a1a1a"
-    hasUnderline := (nameText != "Empty")
+    ; Update Checkbox
+    slot.GuiCheck.Value := slot.saved
 
-    g_Slots[index].GuiText.Opt("Background" bgColor)
-    g_Slots[index].GuiText.SetFont("c" color " " (hasUnderline ? "Underline" : "Norm"))
-    g_Slots[index].GuiCheck.Value := g_Slots[index].saved
-    g_Slots[index].GuiMonBtn.Text := GetMonitorLabel(g_Slots[index].monitor)
-
-    ; Re-bind click events if window is now assigned
-    if (nameText != "Empty") {
-        g_Slots[index].GuiText.OnEvent("Click", ((i, *) => ActivateSlotFromDashboard(i)).Bind(index))
+    ; Update Monitor Buttons (Radio Logic)
+    currentMon := slot.monitor
+    
+    ; Check if monitor is valid (defaults to 0 if not found)
+    if !slot.GuiMonBtns.Has(currentMon)
+        currentMon := 0
+        
+    for val, ctrl in slot.GuiMonBtns {
+        if (val == currentMon) {
+            ; Active: Cyan BG, Black Text
+            ctrl.Opt("Background0x00f3ff c000000")
+        } else {
+            ; Inactive: Dark BG, Grey Text
+            ctrl.Opt("Background0x333333 cAAAAAA")
+        }
     }
 }
 
+SetMonitorPref(index, value) {
+    global g_Slots
+    g_Slots[index].monitor := value
+    SaveSlot(index)
+    UpdateDashboardSlot(index)
+}
+
 ; ===================================================================
-; INTERACTIVE WINDOW NAME HANDLERS
+; INTERACTIVE HANDLERS
 ; ===================================================================
 ActivateSlotFromDashboard(index) {
     global g_Slots
 
-    if (g_Slots[index].name == "Empty") {
-        MsgBox("Slot " index " is empty. Click 'Set' to assign a window.", "Empty Slot", "T2")
+    if (g_Slots[index].name == "Empty" || g_Slots[index].value == 0) {
+        ; If empty, treat click as "Set"
+        StartCapture(index)
         return
     }
 
-    ; Check if window exists before activating
-    target := ""
-    slot := g_Slots[index]
-
-    if (slot.type == "session") {
-        if WinExist("ahk_id " slot.value)
-            target := "ahk_id " slot.value
+    ; Activate logic
+    if ActivateSlot(index) {
+        global g_DashboardGui
+        g_DashboardGui.Hide()
+        ShowOverlay(index, g_Slots[index].name)
     } else {
-        if WinExist("ahk_exe " slot.value)
-            target := "ahk_exe " slot.value
-    }
-
-    if (target != "") {
-        if ActivateSlot(index) {
-            ; Close dashboard after successful activation for better UX
-            global g_DashboardGui
-            g_DashboardGui.Hide()
-            SetTimer(CheckHover, 0) ; Stop hover check
-            ShowOverlay(index, slot.name)
-        } else {
-            MsgBox("Failed to activate window: " slot.name, "Activation Error", "T2")
-        }
-    } else {
-        ; Window no longer exists
-        result := MsgBox("Window '" slot.name "' is no longer available.`n`nWould you like to clear this slot?", "Window Not Found", "T2 YesNo")
-
-        if (result = "Yes") {
+        ; Window might be gone
+        if (MsgBox("Window not found. Clear slot?", "Missing", "YesNo") == "Yes")
             ClearSlot(index)
-        }
-    }
-}
-
-OnWindowNameHover(index, ctrl, isHovering) {
-    global g_Slots
-
-    if (g_Slots[index].name == "Empty")
-        return
-
-    if (isHovering) {
-        ; Hover effect: brighten color and change cursor
-        ctrl.Opt("Background0x333333")
-        ctrl.SetFont("s11 c0x00f3ff Underline")
-        ; Note: AHK doesn't directly support cursor changes on text controls
-        ; This is a limitation, but the color change provides visual feedback
-    } else {
-        ; Normal state
-        ctrl.Opt("Background0x2a2a2a")
-        ctrl.SetFont("s11 c0xffffff Underline")
     }
 }
 
@@ -319,49 +270,27 @@ ClearSlot(index) {
 
 ValidateAllWindows() {
     global g_Slots
-
     Loop MAX_SLOTS {
         index := A_Index
         slot := g_Slots[index]
-
         if (slot.value != 0 && slot.name != "Empty") {
-            exists := false
-
-            if (slot.type == "session") {
-                exists := WinExist("ahk_id " slot.value)
-            } else {
-                exists := WinExist("ahk_exe " slot.value)
-            }
-
+            exists := (slot.type == "session") ? WinExist("ahk_id " slot.value) : WinExist("ahk_exe " slot.value)
+            
             if (!exists) {
-                ; Mark as unavailable but don't clear automatically
-                if (g_Slots[index].GuiText) {
-                    g_Slots[index].GuiText.Opt("Background0x2a0000")
-                    g_Slots[index].GuiText.SetFont("c0xff6666")
-                }
-            } else {
-                ; Restore normal color if window exists
-                if (g_Slots[index].GuiText) {
-                    g_Slots[index].GuiText.Opt("Background0x2a2a2a")
-                    g_Slots[index].GuiText.SetFont("c0xffffff")
-                }
+                ; Visual indicator for missing window
+                slot.GuiText.Opt("cff6666") ; Red text
+                slot.GuiTextBg.Opt("Background0x2a0000")
             }
         }
     }
 }
 
 RefreshDashboard() {
-    ; Update all slots with current window status
-    Loop MAX_SLOTS {
+    Loop MAX_SLOTS
         UpdateDashboardSlot(A_Index)
-    }
-
-    ; Validate all windows and update colors
     ValidateAllWindows()
-
-    ; Brief feedback to user
-    ToolTip("Window status refreshed")
-    SetTimer(() => ToolTip(), -1500)
+    ToolTip("Refreshed")
+    SetTimer(() => ToolTip(), -1000)
 }
 
 #HotIf WinActive("ahk_id " g_DashboardGui.Hwnd)
@@ -372,44 +301,13 @@ RefreshDashboard() {
 5::ActivateSlotFromDashboard(5)
 6::ActivateSlotFromDashboard(6)
 r::RefreshDashboard()
-c::
-{
-    ToolTip("Press number key 1-6 to activate, R to refresh")
-    SetTimer(() => ToolTip(), -2000)
-}
+Esc::g_DashboardGui.Hide()
 #HotIf
 
 ; ===================================================================
 ; MONITOR LOGIC
 ; ===================================================================
-GetMonitorLabel(val) {
-    if (val == 0)
-        return "Auto"
-    if (val == 99)
-        return "Mouse"
-    return "Mon " val
-}
-
-CycleMonitorPref(index, ctrl) {
-    global g_Slots, g_MonitorCount
-
-    current := g_Slots[index].monitor
-
-    ; Cycle: 0 (Auto) -> 1 -> 2... -> 99 (Mouse) -> 0
-    if (current == 0)
-        current := 1
-    else if (current < g_MonitorCount)
-        current++
-    else if (current == g_MonitorCount)
-        current := 99 ; Mouse
-    else
-        current := 0
-
-    g_Slots[index].monitor := current
-    ctrl.Text := GetMonitorLabel(current)
-
-    SaveSlot(index) ; Persist change
-}
+; (Replaced by SetMonitorPref above)
 
 ; ===================================================================
 ; LOGIC: CAPTURE & ASSIGN
@@ -594,28 +492,30 @@ ShowOverlay(index, text) {
         g_OverlayGui.Destroy()
 
     g_OverlayGui := Gui("+AlwaysOnTop +ToolWindow +Disabled -Caption", "Overlay")
-    g_OverlayGui.BackColor := "000000"
-    g_OverlayGui.SetFont("s24 bold", "Segoe UI")
+    g_OverlayGui.BackColor := "0x101010" ; Darker theme match
+    
+    ; Layout: [2] Window Name
+    g_OverlayGui.SetFont("s16 Bold c00f3ff", "Segoe UI")
+    g_OverlayGui.Add("Text", "x10 y10 w40 Center", "[" index "]")
+    
+    g_OverlayGui.SetFont("s12 cFFFFFF", "Segoe UI")
+    g_OverlayGui.Add("Text", "x60 y13 w300", (StrLen(text) > 30 ? SubStr(text, 1, 27) "..." : text))
 
-    g_OverlayGui.SetFont("s18 Bold c00f3ff")
-    g_OverlayGui.Add("Text", "x0 y10 w400 Center", "Activating")
-
-    g_OverlayGui.SetFont("s16 cFFFFFF")
-    g_OverlayGui.Add("Text", "x0 y35 w400 Center", "Slot " index)
-
-    g_OverlayGui.SetFont("s12 cCCCCCC")
-    g_OverlayGui.Add("Text", "x0 y55 w400 Center", text)
-
+    ; Position: Bottom Right Toast
     info := MonitorGet(MonitorGetPrimary(), &l, &t, &r, &b)
-    width := 400
-    height := 100
-    x := l + (r-l - width) // 2
-    y := t + (b-t - height) // 2
+    width := 380
+    height := 50
+    x := r - width - 20
+    y := b - height - 60
 
     g_OverlayGui.Show("x" x " y" y " w" width " h" height " NoActivate")
-    WinSetTransparent(240, g_OverlayGui)
+    
+    ; Cyan Border for overlay
+    WinSetRegion("0-0 w" width " h" height " R10-10", g_OverlayGui.Hwnd) ; Rounded? Or just standard.
+    ; Let's simulate border with a frame if possible, or just transparency.
+    WinSetTransparent(230, g_OverlayGui)
 
-    SetTimer(DestroyOverlay, -1000)
+    SetTimer(DestroyOverlay, -1500)
 }
 
 DestroyOverlay() {
