@@ -116,19 +116,25 @@ CreateDashboard() {
     g_DashboardGui.Add("Text", "x0 y10 w500 Center", "Window-Flow Dynamic")
 
     g_DashboardGui.SetFont("s9 cAAAAAA")
-    g_DashboardGui.Add("Text", "x0 y35 w500 Center", "Assign windows to slots. Use " WHEEL_MODIFIER " + Wheel to switch.")
+    g_DashboardGui.Add("Text", "x0 y35 w500 Center", "Assign windows to slots. Use " WHEEL_MODIFIER " + Wheel to switch. Click names to activate. Press 1-6, R to refresh.")
 
     ; Separator
     g_DashboardGui.SetFont("s10 cFFFFFF")
     g_DashboardGui.Add("Text", "x0 y60 w500 h1 Background0x444444")
 
-    ; Column Headers
+    ; Column Headers with Refresh button
     g_DashboardGui.SetFont("s9 c888888")
     g_DashboardGui.Add("Text", "x20 y70 w40", "Slot")
     g_DashboardGui.Add("Text", "x70 y70 w160", "Application")
     g_DashboardGui.Add("Text", "x240 y70 w80 Center", "Monitor")
     g_DashboardGui.Add("Text", "x330 y70 w60", "Action")
-    g_DashboardGui.Add("Text", "x400 y70 w80", "Persist")
+    g_DashboardGui.Add("Text", "x400 y70 w60", "Persist")
+
+    ; Refresh button
+    g_DashboardGui.SetFont("s8 Bold c00f3ff")
+    btnRefresh := g_DashboardGui.Add("Button", "x460 y67 w30 h20 Background0x2a2a2a", "⟳")
+    btnRefresh.OnEvent("Click", (*) => RefreshDashboard())
+    btnRefresh.ToolTip := "Validate all windows and refresh status"
 
     Loop MAX_SLOTS {
         index := A_Index
@@ -139,11 +145,20 @@ CreateDashboard() {
         g_DashboardGui.SetFont("s12 Bold c00f3ff")
         slotLabel := g_DashboardGui.Add("Text", "x20 y" yPos+5 " w40", index)
 
-        ; Status/Name Text (Highlighted if assigned)
+        ; Status/Name Text (Interactive - Click to activate)
         nameText := g_Slots[index].name
         color := (nameText = "Empty") ? "0x666666" : "0xffffff"
-        g_DashboardGui.SetFont("s11 c" color)
-        g_Slots[index].GuiText := g_DashboardGui.Add("Text", "x70 y" yPos+5 " w160 vSlotName" index, nameText)
+        bgColor := (nameText != "Empty") ? "0x2a2a2a" : "0x1a1a1a"
+
+        g_DashboardGui.SetFont("s11 c" color " Underline")
+        nameControl := g_DashboardGui.Add("Text", "x70 y" yPos+5 " w160 h25 Background" bgColor " vSlotName" index " Center", nameText)
+
+        ; Make clickable only if window is assigned
+        if (nameText != "Empty") {
+            nameControl.OnEvent("Click", ((i, *) => ActivateSlotFromDashboard(i)).Bind(index))
+        }
+
+        g_Slots[index].GuiText := nameControl
 
         ; Monitor Button (Cycle)
         monLabel := GetMonitorLabel(g_Slots[index].monitor)
@@ -175,19 +190,191 @@ CreateDashboard() {
 
 ToggleDashboard() {
     global g_DashboardGui
-    if WinActive("ahk_id " g_DashboardGui.Hwnd)
+    if WinActive("ahk_id " g_DashboardGui.Hwnd) {
         g_DashboardGui.Hide()
-    else
+        SetTimer(CheckHover, 0) ; Stop hover check
+    } else {
         g_DashboardGui.Show("w500 AutoSize") ; Fixed width, auto height
+        SetTimer(CheckHover, 50) ; Start hover check
+        ; Auto-refresh window status when opening dashboard
+        ValidateAllWindows()
+    }
+}
+
+CheckHover() {
+    global g_Slots, g_DashboardGui
+
+    try {
+        MouseGetPos(,,, &hCtrl, 2) ; Get HWND of control under mouse
+    } catch {
+        return
+    }
+
+    Loop MAX_SLOTS {
+        if !g_Slots.Has(A_Index) || !g_Slots[A_Index].HasProp("GuiText")
+            continue
+
+        ctrl := g_Slots[A_Index].GuiText
+        if (ctrl && ctrl.Hwnd == hCtrl)
+            OnWindowNameHover(A_Index, ctrl, true)
+        else if (ctrl)
+            OnWindowNameHover(A_Index, ctrl, false)
+    }
 }
 
 UpdateDashboardSlot(index) {
     global g_Slots
     g_Slots[index].GuiText.Value := g_Slots[index].name
-    g_Slots[index].GuiText.Opt("c" ((g_Slots[index].name == "Empty") ? "0x666666" : "0xffffff"))
+
+    ; Update appearance based on slot status
+    nameText := g_Slots[index].name
+    color := (nameText = "Empty") ? "0x666666" : "0xffffff"
+    bgColor := (nameText != "Empty") ? "0x2a2a2a" : "0x1a1a1a"
+    hasUnderline := (nameText != "Empty")
+
+    g_Slots[index].GuiText.Opt("c" color " Background" bgColor . (hasUnderline ? " Underline" : ""))
     g_Slots[index].GuiCheck.Value := g_Slots[index].saved
     g_Slots[index].GuiMonBtn.Text := GetMonitorLabel(g_Slots[index].monitor)
+
+    ; Re-bind click events if window is now assigned
+    if (nameText != "Empty") {
+        g_Slots[index].GuiText.OnEvent("Click", ((i, *) => ActivateSlotFromDashboard(i)).Bind(index))
+    }
 }
+
+; ===================================================================
+; INTERACTIVE WINDOW NAME HANDLERS
+; ===================================================================
+ActivateSlotFromDashboard(index) {
+    global g_Slots
+
+    if (g_Slots[index].name == "Empty") {
+        MsgBox("Slot " index " is empty. Click 'Set' to assign a window.", "Empty Slot", "T2")
+        return
+    }
+
+    ; Check if window exists before activating
+    target := ""
+    slot := g_Slots[index]
+
+    if (slot.type == "session") {
+        if WinExist("ahk_id " slot.value)
+            target := "ahk_id " slot.value
+    } else {
+        if WinExist("ahk_exe " slot.value)
+            target := "ahk_exe " slot.value
+    }
+
+    if (target != "") {
+        if ActivateSlot(index) {
+            ; Close dashboard after successful activation for better UX
+            global g_DashboardGui
+            g_DashboardGui.Hide()
+            SetTimer(CheckHover, 0) ; Stop hover check
+            ShowOverlay(index, slot.name)
+        } else {
+            MsgBox("Failed to activate window: " slot.name, "Activation Error", "T2")
+        }
+    } else {
+        ; Window no longer exists
+        result := MsgBox("Window '" slot.name "' is no longer available.`n`nWould you like to clear this slot?", "Window Not Found", "T2 YesNo")
+
+        if (result = "Yes") {
+            ClearSlot(index)
+        }
+    }
+}
+
+OnWindowNameHover(index, ctrl, isHovering) {
+    global g_Slots
+
+    if (g_Slots[index].name == "Empty")
+        return
+
+    if (isHovering) {
+        ; Hover effect: brighten color and change cursor
+        ctrl.Opt("c0x00f3ff Background0x333333")
+        ctrl.SetFont("s11 c0x00f3ff Underline")
+        ; Note: AHK doesn't directly support cursor changes on text controls
+        ; This is a limitation, but the color change provides visual feedback
+    } else {
+        ; Normal state
+        ctrl.Opt("c0xffffff Background0x2a2a2a")
+        ctrl.SetFont("s11 c0xffffff Underline")
+    }
+}
+
+ClearSlot(index) {
+    global g_Slots
+    g_Slots[index].name := "Empty"
+    g_Slots[index].type := "session"
+    g_Slots[index].value := 0
+    g_Slots[index].saved := 0
+    g_Slots[index].monitor := 0
+
+    UpdateDashboardSlot(index)
+    SaveSlot(index)
+}
+
+ValidateAllWindows() {
+    global g_Slots
+
+    Loop MAX_SLOTS {
+        index := A_Index
+        slot := g_Slots[index]
+
+        if (slot.value != 0 && slot.name != "Empty") {
+            exists := false
+
+            if (slot.type == "session") {
+                exists := WinExist("ahk_id " slot.value)
+            } else {
+                exists := WinExist("ahk_exe " slot.value)
+            }
+
+            if (!exists) {
+                ; Mark as unavailable but don't clear automatically
+                if (g_Slots[index].GuiText) {
+                    g_Slots[index].GuiText.Opt("c0xff6666 Background0x2a0000")
+                }
+            } else {
+                ; Restore normal color if window exists
+                if (g_Slots[index].GuiText) {
+                    g_Slots[index].GuiText.Opt("c0xffffff Background0x2a2a2a")
+                }
+            }
+        }
+    }
+}
+
+RefreshDashboard() {
+    ; Update all slots with current window status
+    Loop MAX_SLOTS {
+        UpdateDashboardSlot(A_Index)
+    }
+
+    ; Validate all windows and update colors
+    ValidateAllWindows()
+
+    ; Brief feedback to user
+    ToolTip("Window status refreshed")
+    SetTimer(() => ToolTip(), -1500)
+}
+
+#HotIf WinActive("ahk_id " g_DashboardGui.Hwnd)
+1::ActivateSlotFromDashboard(1)
+2::ActivateSlotFromDashboard(2)
+3::ActivateSlotFromDashboard(3)
+4::ActivateSlotFromDashboard(4)
+5::ActivateSlotFromDashboard(5)
+6::ActivateSlotFromDashboard(6)
+r::RefreshDashboard()
+c::
+{
+    ToolTip("Press number key 1-6 to activate, R to refresh")
+    SetTimer(() => ToolTip(), -2000)
+}
+#HotIf
 
 ; ===================================================================
 ; MONITOR LOGIC
