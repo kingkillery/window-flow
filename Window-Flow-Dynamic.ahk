@@ -232,8 +232,8 @@ UpdateDashboardSlot(index) {
     bgColor := (nameText != "Empty") ? "0x2a2a2a" : "0x1a1a1a"
     hasUnderline := (nameText != "Empty")
 
-    g_Slots[index].GuiText.Opt("c" color " Background" bgColor)
-    g_Slots[index].GuiText.SetFont((hasUnderline ? "Underline" : "Norm"))
+    g_Slots[index].GuiText.Opt("Background" bgColor)
+    g_Slots[index].GuiText.SetFont("c" color " " (hasUnderline ? "Underline" : "Norm"))
     g_Slots[index].GuiCheck.Value := g_Slots[index].saved
     g_Slots[index].GuiMonBtn.Text := GetMonitorLabel(g_Slots[index].monitor)
 
@@ -294,13 +294,13 @@ OnWindowNameHover(index, ctrl, isHovering) {
 
     if (isHovering) {
         ; Hover effect: brighten color and change cursor
-        ctrl.Opt("c0x00f3ff Background0x333333")
+        ctrl.Opt("Background0x333333")
         ctrl.SetFont("s11 c0x00f3ff Underline")
         ; Note: AHK doesn't directly support cursor changes on text controls
         ; This is a limitation, but the color change provides visual feedback
     } else {
         ; Normal state
-        ctrl.Opt("c0xffffff Background0x2a2a2a")
+        ctrl.Opt("Background0x2a2a2a")
         ctrl.SetFont("s11 c0xffffff Underline")
     }
 }
@@ -336,12 +336,14 @@ ValidateAllWindows() {
             if (!exists) {
                 ; Mark as unavailable but don't clear automatically
                 if (g_Slots[index].GuiText) {
-                    g_Slots[index].GuiText.Opt("c0xff6666 Background0x2a0000")
+                    g_Slots[index].GuiText.Opt("Background0x2a0000")
+                    g_Slots[index].GuiText.SetFont("c0xff6666")
                 }
             } else {
                 ; Restore normal color if window exists
                 if (g_Slots[index].GuiText) {
-                    g_Slots[index].GuiText.Opt("c0xffffff Background0x2a2a2a")
+                    g_Slots[index].GuiText.Opt("Background0x2a2a2a")
+                    g_Slots[index].GuiText.SetFont("c0xffffff")
                 }
             }
         }
