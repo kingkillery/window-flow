@@ -38,7 +38,8 @@ Loop MAX_SLOTS {
         type: "session",    ; "session" (HWND) or "permanent" (EXE)
         value: 0,           ; HWND or process name
         saved: 0,           ; 0 or 1 (Checkbox state)
-        monitor: 0          ; 0=Auto/None, 1=Mon1, 2=Mon2, 3=Mouse
+        monitor: 0,         ; 0=Auto/None, 1=Mon1, 2=Mon2, 3=Mouse
+        transparency: 255   ; 25-255 alpha
     })
 }
 
@@ -71,6 +72,8 @@ LoadSettings() {
             g_Slots[index].type := IniRead(INI_FILE, "Slot_" index, "Type", "session")
             g_Slots[index].value := IniRead(INI_FILE, "Slot_" index, "Value", 0)
             g_Slots[index].monitor := Integer(IniRead(INI_FILE, "Slot_" index, "Monitor", 0))
+            transVal := Integer(IniRead(INI_FILE, "Slot_" index, "Transparency", 255))
+            g_Slots[index].transparency := ClampTransparency(transVal)
 
             ; If permanent, try to reconnect to existing window
             if (g_Slots[index].type == "permanent" && g_Slots[index].value != 0) {
@@ -93,9 +96,19 @@ SaveSlot(index) {
         IniWrite(slot.type, INI_FILE, section, "Type")
         IniWrite(slot.value, INI_FILE, section, "Value")
         IniWrite(slot.monitor, INI_FILE, section, "Monitor")
+        IniWrite(slot.transparency, INI_FILE, section, "Transparency")
     } else {
         IniDelete(INI_FILE, section)
     }
+}
+
+ClampTransparency(value) {
+    value := Integer(value)
+    if (value < 25)
+        value := 25
+    if (value > 255)
+        value := 255
+    return value
 }
 
 ; ===================================================================
@@ -147,8 +160,14 @@ CreateDashboard() {
         ; === SET TARGET BUTTON ===
         ; Styled as a wide dark button
         g_DashboardGui.SetFont("s9 Bold cFFFFFF")
-        btnSet := g_DashboardGui.Add("Button", "x90 y" yPos+50 " w360 h28", "[+] SET TARGET")
+        btnSet := g_DashboardGui.Add("Button", "x90 y" yPos+50 " w200 h28", "[+] SET TARGET")
         btnSet.OnEvent("Click", ((i, *) => StartCapture(i)).Bind(index))
+
+        g_DashboardGui.SetFont("s9 cFFFFFF")
+        g_DashboardGui.Add("Text", "x300 y" yPos+54 " w60 h22 BackgroundTrans", "Opacity")
+        slider := g_DashboardGui.Add("Slider", "x365 y" yPos+50 " w90 h28 Range25-255 ToolTip", g_Slots[index].transparency)
+        slider.OnEvent("Change", ((i, ctrl, *) => SetTransparency(i, ctrl.Value)).Bind(index))
+        g_Slots[index].GuiSlider := slider
 
         ; === MONITOR TOGGLES ([A] [1] [2] [M]) ===
         ; Using Text controls to simulate colored toggle buttons
@@ -223,6 +242,9 @@ UpdateDashboardSlot(index) {
             ctrl.Opt("Background0x333333 cAAAAAA")
         }
     }
+
+    if (slot.GuiSlider)
+        slot.GuiSlider.Value := slot.transparency
 }
 
 SetMonitorPref(index, value) {
@@ -230,6 +252,48 @@ SetMonitorPref(index, value) {
     g_Slots[index].monitor := value
     SaveSlot(index)
     UpdateDashboardSlot(index)
+}
+
+; ===================================================================
+; TRANSPARENCY
+; ===================================================================
+GetSlotTarget(slot) {
+    if (slot.value == 0)
+        return ""
+
+    if (slot.type == "session") {
+        return WinExist("ahk_id " slot.value) ? "ahk_id " slot.value : ""
+    }
+
+    return WinExist("ahk_exe " slot.value) ? "ahk_exe " slot.value : ""
+}
+
+ApplyTransparencyToSlot(index, target := "") {
+    global g_Slots
+    slot := g_Slots[index]
+
+    if (target == "")
+        target := GetSlotTarget(slot)
+
+    if (target != "") {
+        try WinSetTransparent(slot.transparency, target)
+    }
+}
+
+SetTransparency(index, newValue := "") {
+    global g_Slots
+    slot := g_Slots[index]
+
+    if (newValue != "")
+        slot.transparency := ClampTransparency(newValue)
+    else
+        slot.transparency := ClampTransparency(slot.transparency)
+
+    if (slot.GuiSlider && slot.GuiSlider.Value != slot.transparency)
+        slot.GuiSlider.Value := slot.transparency
+
+    SaveSlot(index)
+    ApplyTransparencyToSlot(index)
 }
 
 ; ===================================================================
@@ -263,6 +327,7 @@ ClearSlot(index) {
     g_Slots[index].value := 0
     g_Slots[index].saved := 0
     g_Slots[index].monitor := 0
+    g_Slots[index].transparency := 255
 
     UpdateDashboardSlot(index)
     SaveSlot(index)
@@ -354,6 +419,7 @@ AssignWindow(index, hwnd) {
 
     UpdateDashboardSlot(index)
     SaveSlot(index)
+    ApplyTransparencyToSlot(index)
 }
 
 ToggleSave(index) {
@@ -419,16 +485,7 @@ CycleSlots(direction) {
 ActivateSlot(index) {
     global g_Slots
     slot := g_Slots[index]
-    target := ""
-
-    ; Find Target
-    if (slot.type == "session") {
-        if WinExist("ahk_id " slot.value)
-            target := "ahk_id " slot.value
-    } else {
-        if WinExist("ahk_exe " slot.value)
-            target := "ahk_exe " slot.value
-    }
+    target := GetSlotTarget(slot)
 
     if (target != "") {
         ; Handle Monitor Logic
@@ -460,6 +517,7 @@ ActivateSlot(index) {
         }
 
         WinActivate(target)
+        ApplyTransparencyToSlot(index, target)
         return true
     }
     return false
