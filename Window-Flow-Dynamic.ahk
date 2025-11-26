@@ -29,6 +29,138 @@ global g_DashboardGui := ""
 global g_OverlayGui := ""
 global g_CurrentSlotIndex := 0
 global g_MonitorCount := MonitorGetCount()
+global g_DwmEnabled := DwmIsEnabled()
+
+; ===================================================================
+; DWM THUMBNAIL HELPERS
+; ===================================================================
+DwmIsEnabled() {
+    enabled := 0
+    result := DllCall("dwmapi\DwmIsCompositionEnabled", "Int*", &enabled)
+    return (result == 0 && enabled)
+}
+
+RegisterThumbnail(destHwnd, srcHwnd) {
+    thumbId := 0
+    result := DllCall("dwmapi\DwmRegisterThumbnail", "Ptr", destHwnd, "Ptr", srcHwnd, "Ptr*", &thumbId)
+    return (result == 0) ? thumbId : 0
+}
+
+UnregisterThumbnail(thumbId) {
+    if (thumbId != 0)
+        DllCall("dwmapi\DwmUnregisterThumbnail", "Ptr", thumbId)
+}
+
+UpdateThumbnailRect(thumbId, left, top, right, bottom) {
+    if (thumbId == 0)
+        return false
+
+    ; DWM_THUMBNAIL_PROPERTIES structure (32 bytes on x64)
+    ; dwFlags (4) + rcDestination (16) + rcSource (16) + opacity (1) + visible (1) + sourceClientAreaOnly (1) + padding
+    props := Buffer(48, 0)
+
+    ; DWM_TNP_RECTDESTINATION = 0x1, DWM_TNP_VISIBLE = 0x8, DWM_TNP_OPACITY = 0x4
+    flags := 0x1 | 0x8 | 0x4
+    NumPut("UInt", flags, props, 0)
+
+    ; rcDestination RECT (left, top, right, bottom) at offset 4
+    NumPut("Int", left, props, 4)
+    NumPut("Int", top, props, 8)
+    NumPut("Int", right, props, 12)
+    NumPut("Int", bottom, props, 16)
+
+    ; opacity at offset 36 (after rcDestination + rcSource)
+    NumPut("UChar", 255, props, 36)
+
+    ; visible (BOOL) at offset 37
+    NumPut("UChar", 1, props, 37)
+
+    result := DllCall("dwmapi\DwmUpdateThumbnailProperties", "Ptr", thumbId, "Ptr", props)
+    return (result == 0)
+}
+
+UpdateSlotPreview(index) {
+    global g_Slots, g_DashboardGui, g_DwmEnabled
+    if (!g_DwmEnabled)
+        return
+
+    slot := g_Slots[index]
+
+    ; Skip if no thumbnail registered
+    if (slot.Thumb == 0)
+        return
+
+    ; Get the dashboard's client area position on screen
+    ; The preview box coordinates are relative to the GUI client area
+    ; DWM needs coordinates relative to the destination window's client area
+    left := slot.PreviewX
+    top := slot.PreviewY
+    right := left + slot.PreviewW
+    bottom := top + slot.PreviewH
+
+    UpdateThumbnailRect(slot.Thumb, left, top, right, bottom)
+}
+
+RegisterSlotThumbnail(index) {
+    global g_Slots, g_DashboardGui, g_DwmEnabled
+    if (!g_DwmEnabled)
+        return
+
+    slot := g_Slots[index]
+
+    ; Unregister existing thumbnail if any
+    if (slot.Thumb != 0) {
+        UnregisterThumbnail(slot.Thumb)
+        slot.Thumb := 0
+    }
+
+    ; Get source window HWND
+    if (slot.value == 0 || slot.name == "Empty")
+        return
+
+    srcHwnd := 0
+    if (slot.type == "session") {
+        srcHwnd := slot.value
+        if !WinExist("ahk_id " srcHwnd)
+            return
+    } else {
+        ; Permanent slot - get HWND from process name
+        srcHwnd := WinExist("ahk_exe " slot.value)
+        if (!srcHwnd)
+            return
+    }
+
+    ; Register thumbnail
+    thumbId := RegisterThumbnail(g_DashboardGui.Hwnd, srcHwnd)
+    if (thumbId == 0) {
+        ; Registration failed - silently continue
+        return
+    }
+
+    slot.Thumb := thumbId
+    UpdateSlotPreview(index)
+}
+
+RefreshAllThumbnails() {
+    global g_DwmEnabled
+    if (!g_DwmEnabled)
+        return
+
+    Loop MAX_SLOTS {
+        RegisterSlotThumbnail(A_Index)
+    }
+}
+
+UnregisterAllThumbnails() {
+    global g_Slots
+    Loop MAX_SLOTS {
+        slot := g_Slots[A_Index]
+        if (slot.Thumb != 0) {
+            UnregisterThumbnail(slot.Thumb)
+            slot.Thumb := 0
+        }
+    }
+}
 
 ; Initialize Slots
 Loop MAX_SLOTS {
@@ -39,7 +171,8 @@ Loop MAX_SLOTS {
         value: 0,           ; HWND or process name
         saved: 0,           ; 0 or 1 (Checkbox state)
         monitor: 0,         ; 0=Auto/None, 1=Mon1, 2=Mon2, 3=Mouse
-        transparency: 255   ; 25-255 alpha
+        transparency: 255,  ; 25-255 alpha
+        Thumb: 0            ; DWM thumbnail handle
     })
 }
 
@@ -121,89 +254,85 @@ CreateDashboard() {
     g_DashboardGui.BackColor := "0x101010"
     g_DashboardGui.MarginX := 10
     g_DashboardGui.MarginY := 10
-    
+
     ; Header
     g_DashboardGui.SetFont("s11 c00f3ff", "Segoe UI")
     g_DashboardGui.Add("Text", "x20 y10 w600 h20", "Control Modules")
 
     Loop MAX_SLOTS {
         index := A_Index
-        yPos := 40 + ((index-1) * 95)
+        yPos := 40 + ((index-1) * 110)
 
         ; === CARD BORDER (Cyan Outline) ===
-        ; Using Text controls to draw 1px borders
-        g_DashboardGui.Add("Text", "x10 y" yPos " w620 h1 Background0x00f3ff")      ; Top
-        g_DashboardGui.Add("Text", "x10 y" yPos+90 " w620 h1 Background0x00f3ff")    ; Bottom
-        g_DashboardGui.Add("Text", "x10 y" yPos " w1 h90 Background0x00f3ff")       ; Left
-        g_DashboardGui.Add("Text", "x630 y" yPos " w1 h91 Background0x00f3ff")      ; Right
+        g_DashboardGui.Add("Text", "x10 y" yPos " w620 h1 Background0x00f3ff")       ; Top
+        g_DashboardGui.Add("Text", "x10 y" yPos+105 " w620 h1 Background0x00f3ff")   ; Bottom
+        g_DashboardGui.Add("Text", "x10 y" yPos " w1 h105 Background0x00f3ff")       ; Left
+        g_DashboardGui.Add("Text", "x630 y" yPos " w1 h106 Background0x00f3ff")      ; Right
 
-        ; === SLOT NUMBER ===
-        g_DashboardGui.SetFont("s42 Bold c00f3ff", "Segoe UI")
-        g_DashboardGui.Add("Text", "x20 y" yPos+12 " w60 Center Background0x101010", index)
+        ; === PREVIEW BOX (DWM Thumbnail Target) ===
+        previewBox := g_DashboardGui.Add("Text", "x20 y" yPos+8 " w140 h88 Background0x0a0a0a", "")
+        g_Slots[index].PreviewBox := previewBox
+        g_Slots[index].PreviewX := 20
+        g_Slots[index].PreviewY := yPos + 8
+        g_Slots[index].PreviewW := 140
+        g_Slots[index].PreviewH := 88
+
+        ; === SLOT NUMBER (top right of preview) ===
+        g_DashboardGui.SetFont("s28 Bold c00f3ff", "Segoe UI")
+        g_DashboardGui.Add("Text", "x170 y" yPos+8 " w40 Center Background0x101010", index)
 
         ; === WINDOW NAME DISPLAY ===
-        ; Read-only text box style
         g_DashboardGui.SetFont("s10 cFFFFFF Norm", "Segoe UI")
-        
-        ; Background for name
-        nameBg := g_DashboardGui.Add("Text", "x90 y" yPos+12 " w360 h30 Background0x222222 +0x200", "")
-        
-        ; Actual Text (Overlay)
+        nameBg := g_DashboardGui.Add("Text", "x215 y" yPos+8 " w290 h28 Background0x222222 +0x200", "")
         g_DashboardGui.SetFont("s10 cFFFFFF")
-        nameControl := g_DashboardGui.Add("Text", "x95 y" yPos+12 " w350 h30 BackgroundTrans +0x200 vSlotName" index, "Empty Slot")
-        
-        ; Click name to activate
+        nameControl := g_DashboardGui.Add("Text", "x220 y" yPos+8 " w280 h28 BackgroundTrans +0x200 vSlotName" index, "Empty Slot")
         nameControl.OnEvent("Click", ((i, *) => ActivateSlotFromDashboard(i)).Bind(index))
         g_Slots[index].GuiText := nameControl
         g_Slots[index].GuiTextBg := nameBg
 
-        ; === SET TARGET BUTTON ===
-        ; Styled as a wide dark button
-        g_DashboardGui.SetFont("s9 Bold cFFFFFF")
-        btnSet := g_DashboardGui.Add("Button", "x90 y" yPos+50 " w200 h28", "[+] SET TARGET")
-        btnSet.OnEvent("Click", ((i, *) => StartCapture(i)).Bind(index))
-
-        g_DashboardGui.SetFont("s9 cFFFFFF")
-        g_DashboardGui.Add("Text", "x300 y" yPos+54 " w60 h22 BackgroundTrans", "Opacity")
-        slider := g_DashboardGui.Add("Slider", "x365 y" yPos+50 " w90 h28 Range25-255 ToolTip", g_Slots[index].transparency)
-        slider.OnEvent("Change", ((i, ctrl, *) => SetTransparency(i, ctrl.Value)).Bind(index))
-        g_Slots[index].GuiSlider := slider
-
-        ; === MONITOR TOGGLES ([A] [1] [2] [M]) ===
-        ; Using Text controls to simulate colored toggle buttons
+        ; === MONITOR TOGGLES ([A] [1] [2] [M]) - top right ===
         g_Slots[index].GuiMonBtns := Map()
-        
         MakeMonBtn(label, val, xOff) {
-            g_DashboardGui.SetFont("s9 Bold cFFFFFF")
-            ; Background
-            btn := g_DashboardGui.Add("Text", "x" (465 + xOff) " y" yPos+12 " w30 h30 Background0x333333 +0x200 Center", label)
+            g_DashboardGui.SetFont("s8 Bold cFFFFFF")
+            btn := g_DashboardGui.Add("Text", "x" (515 + xOff) " y" yPos+8 " w26 h26 Background0x333333 +0x200 Center", label)
             btn.OnEvent("Click", ((i, v, *) => SetMonitorPref(i, v)).Bind(index, val))
             return btn
         }
-
         g_Slots[index].GuiMonBtns[0] := MakeMonBtn("[A]", 0, 0)
-        g_Slots[index].GuiMonBtns[1] := MakeMonBtn("[1]", 1, 35)
-        g_Slots[index].GuiMonBtns[2] := MakeMonBtn("[2]", 2, 70)
-        g_Slots[index].GuiMonBtns[99] := MakeMonBtn("[M]", 99, 105)
+        g_Slots[index].GuiMonBtns[1] := MakeMonBtn("[1]", 1, 28)
+        g_Slots[index].GuiMonBtns[2] := MakeMonBtn("[2]", 2, 56)
+        g_Slots[index].GuiMonBtns[99] := MakeMonBtn("[M]", 99, 84)
 
-        ; === KEEP SAVED CHECKBOX ===
-        g_DashboardGui.SetFont("s10 c00f3ff")
-        chk := g_DashboardGui.Add("Checkbox", "x465 y" yPos+52 " w140 vChk" index, "Keep Saved")
+        ; === ROW 2: SET TARGET + OPACITY + KEEP SAVED ===
+        g_DashboardGui.SetFont("s9 Bold cFFFFFF")
+        btnSet := g_DashboardGui.Add("Button", "x170 y" yPos+70 " w120 h26", "[+] SET TARGET")
+        btnSet.OnEvent("Click", ((i, *) => StartCapture(i)).Bind(index))
+
+        g_DashboardGui.SetFont("s9 cFFFFFF")
+        g_DashboardGui.Add("Text", "x300 y" yPos+74 " w45 h22 BackgroundTrans", "Opacity")
+        slider := g_DashboardGui.Add("Slider", "x350 y" yPos+70 " w100 h26 Range25-255 ToolTip", g_Slots[index].transparency)
+        slider.OnEvent("Change", ((i, ctrl, *) => SetTransparency(i, ctrl.Value)).Bind(index))
+        g_Slots[index].GuiSlider := slider
+
+        g_DashboardGui.SetFont("s9 c00f3ff")
+        chk := g_DashboardGui.Add("Checkbox", "x470 y" yPos+72 " w140 h24 vChk" index, "Keep Saved")
         chk.OnEvent("Click", ((i, *) => ToggleSave(i)).Bind(index))
         g_Slots[index].GuiCheck := chk
     }
 
-    g_DashboardGui.OnEvent("Close", (*) => g_DashboardGui.Hide())
-    g_DashboardGui.OnEvent("Escape", (*) => g_DashboardGui.Hide())
+    g_DashboardGui.OnEvent("Close", (*) => (UnregisterAllThumbnails(), g_DashboardGui.Hide()))
+    g_DashboardGui.OnEvent("Escape", (*) => (UnregisterAllThumbnails(), g_DashboardGui.Hide()))
 }
 
 ToggleDashboard() {
     global g_DashboardGui
     if WinActive("ahk_id " g_DashboardGui.Hwnd) {
         g_DashboardGui.Hide()
+        UnregisterAllThumbnails()
     } else {
         g_DashboardGui.Show("w645 AutoSize")
         ValidateAllWindows()
+        RefreshAllThumbnails()
     }
 }
 
@@ -322,12 +451,20 @@ ActivateSlotFromDashboard(index) {
 
 ClearSlot(index) {
     global g_Slots
-    g_Slots[index].name := "Empty"
-    g_Slots[index].type := "session"
-    g_Slots[index].value := 0
-    g_Slots[index].saved := 0
-    g_Slots[index].monitor := 0
-    g_Slots[index].transparency := 255
+    slot := g_Slots[index]
+
+    ; Unregister thumbnail if active
+    if (slot.Thumb != 0) {
+        UnregisterThumbnail(slot.Thumb)
+        slot.Thumb := 0
+    }
+
+    slot.name := "Empty"
+    slot.type := "session"
+    slot.value := 0
+    slot.saved := 0
+    slot.monitor := 0
+    slot.transparency := 255
 
     UpdateDashboardSlot(index)
     SaveSlot(index)
@@ -340,8 +477,13 @@ ValidateAllWindows() {
         slot := g_Slots[index]
         if (slot.value != 0 && slot.name != "Empty") {
             exists := (slot.type == "session") ? WinExist("ahk_id " slot.value) : WinExist("ahk_exe " slot.value)
-            
+
             if (!exists) {
+                ; Unregister thumbnail for missing window
+                if (slot.Thumb != 0) {
+                    UnregisterThumbnail(slot.Thumb)
+                    slot.Thumb := 0
+                }
                 ; Visual indicator for missing window
                 slot.GuiText.Opt("cff6666") ; Red text
                 slot.GuiTextBg.Opt("Background0x2a0000")
@@ -354,6 +496,7 @@ RefreshDashboard() {
     Loop MAX_SLOTS
         UpdateDashboardSlot(A_Index)
     ValidateAllWindows()
+    RefreshAllThumbnails()
     ToolTip("Refreshed")
     SetTimer(() => ToolTip(), -1000)
 }
@@ -420,6 +563,9 @@ AssignWindow(index, hwnd) {
     UpdateDashboardSlot(index)
     SaveSlot(index)
     ApplyTransparencyToSlot(index)
+
+    ; Register DWM thumbnail for live preview
+    RegisterSlotThumbnail(index)
 }
 
 ToggleSave(index) {
