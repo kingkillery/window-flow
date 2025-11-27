@@ -153,11 +153,17 @@ if (profile = "custom") {
 ; Run PromptOpt (PowerShell Bridge)
 isInsano := args.Has("insano") || (EnvGet("PROMPTOPT_INSANO") == "1")
 isPrecise := args.Has("precise") || (EnvGet("PROMPTOPT_PRECISE") == "1")
-if (selected && selected.HasOwnProp("IsPrecise")) {
-    isPrecise := selected.IsPrecise
+isAgentMode := (EnvGet("PROMPTOPT_AGENT_MODE") == "1")
+
+; Override from picker selection if available
+if (IsSet(selected) && selected) {
+    if (selected.HasOwnProp("IsPrecise")) {
+        isPrecise := selected.IsPrecise
+    }
+    if (selected.HasOwnProp("IsAgentMode")) {
+        isAgentMode := selected.IsAgentMode
+    }
 }
-; Get Agent Mode flag from selection
-isAgentMode := selected && selected.HasOwnProp("IsAgentMode") ? selected.IsAgentMode : false
 RunPromptOpt(mode, model, profile, isInsano, isPrecise, isAgentMode)
 
 
