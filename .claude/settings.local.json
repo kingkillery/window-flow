@@ -20,7 +20,8 @@
       "Bash(pnpm run build:main)",
       "Bash($null)",
       "Bash(Get-Command par -ErrorAction SilentlyContinue)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(mv:*)"
     ],
     "deny": [],
     "ask": []

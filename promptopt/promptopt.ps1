@@ -10,7 +10,9 @@ param(
   [string]$LogFile,
   [string]$CustomPromptFile,
   [string]$ContextFilePath,
-  [switch]$CopyToClipboard = $false
+  [switch]$CopyToClipboard = $false,
+  [switch]$PreciseEdit = $false,
+  [switch]$AgentMode = $false
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,6 +47,20 @@ if ((-not $PSBoundParameters.ContainsKey('Profile')) -and $env:PROMPTOPT_PROFILE
 }
 if ([string]::IsNullOrWhiteSpace($Profile)) { $Profile = 'browser' }
 Write-Log "Profile=$Profile"
+
+# PreciseEdit: prefer explicit param, then env
+if ((-not $PSBoundParameters.ContainsKey('PreciseEdit')) -and $env:PROMPTOPT_PRECISE -and ($env:PROMPTOPT_PRECISE -eq '1')) {
+  $PreciseEdit = $true
+  Write-Log "PreciseEdit overridden from PROMPTOPT_PRECISE: $PreciseEdit"
+}
+Write-Log "PreciseEdit=$PreciseEdit"
+
+# AgentMode: prefer explicit param, then env
+if ((-not $PSBoundParameters.ContainsKey('AgentMode')) -and $env:PROMPTOPT_AGENT_MODE -and ($env:PROMPTOPT_AGENT_MODE -eq '1')) {
+  $AgentMode = $true
+  Write-Log "AgentMode overridden from PROMPTOPT_AGENT_MODE: $AgentMode"
+}
+Write-Log "AgentMode=$AgentMode"
 
 # ------- Load .env into the process environment -------
 function Import-DotEnv([string]$path) {
@@ -147,6 +163,34 @@ if ([string]::IsNullOrWhiteSpace($sysPrompt)) {
   }
 }
 Write-Log ("System prompt length=" + ($sysPrompt.Length))
+
+# ------- Precise Edit Mode Wrapper -------
+# When PreciseEdit is enabled, wrap the system prompt with instructions to output
+# minimal targeted edits instead of rewriting the entire prompt
+if ($PreciseEdit) {
+  Write-Log "PreciseEdit mode enabled - wrapping system prompt for minimal edits"
+  $preciseWrapper = @"
+You are in PRECISE EDIT MODE. Your goal is to make minimal, targeted improvements to the input text while preserving as much of the original structure, wording, and formatting as possible.
+
+RULES:
+1. Make ONLY the changes necessary to improve clarity, correctness, or effectiveness
+2. Preserve the original author's voice, style, and word choices where possible
+3. Do NOT rewrite entire sections unless absolutely necessary
+4. Do NOT add significant new content unless the input is clearly incomplete
+5. Do NOT remove content unless it's clearly redundant or incorrect
+6. Maintain the same overall structure and organization
+
+UNDERLYING OPTIMIZATION GUIDELINES:
+$sysPrompt
+
+OUTPUT FORMAT:
+- Return only the edited text with minimal changes applied
+- Do NOT explain what changes you made
+- Do NOT include any preamble or commentary
+"@
+  $sysPrompt = $preciseWrapper
+  Write-Log ("Wrapped system prompt length=" + ($sysPrompt.Length))
+}
 
 $sysFile = Join-Path $env:TEMP ("promptopt_sys_{0}.txt" -f ([DateTime]::UtcNow.Ticks))
 Set-Content -LiteralPath $sysFile -Encoding UTF8 -NoNewline -Value $sysPrompt
@@ -279,6 +323,12 @@ if (-not $env:PROMPTOPT_API_KEY -or [string]::IsNullOrWhiteSpace($env:PROMPTOPT_
 if ($env:PROMPTOPT_STREAM -and $env:PROMPTOPT_STREAM.Trim()) {
   $argsList += @('--stream')
   Write-Log 'Streaming enabled via PROMPTOPT_STREAM.'
+}
+
+# Enable Agent Mode when requested
+if ($AgentMode) {
+  $argsList += @('--agent-mode')
+  Write-Log 'Agent Mode enabled.'
 }
 
 Write-Log "Invoking Python backend..."

@@ -192,6 +192,28 @@ class MetaPromptSelector:
                 weight=1.2  # Higher weight (strong signals)
             ),
             MetaPrompt(
+                id="coding-python-meta",
+                name="Coding Python - Meta Prompt",
+                description="Python-specific code generation with advanced structure and multi-perspective reasoning",
+                keywords=[
+                    "python", "py", "django", "flask", "fastapi", "pandas", "numpy",
+                    "pytest", "pip", "virtualenv", "conda", "pydantic", "typing",
+                    "decorator", "generator", "comprehension", "async", "asyncio",
+                    "__init__", "__main__", "import", "from import"
+                ],
+                patterns=[
+                    r'\b(python|\.py)\b',
+                    r'\b(def |class |import |from .* import |async def )',
+                    r'\b(django|flask|fastapi|pandas|numpy|pytest|pydantic)\b',
+                    r'@\w+',  # Decorators
+                    r'\b(__init__|__main__|__name__)\b',
+                ],
+                file_path=str(self.meta_prompt_dir / "Meta_Prompt.codingpython.md"),
+                category="coding",
+                mode="meta",
+                weight=1.3  # Higher weight for Python-specific signals
+            ),
+            MetaPrompt(
                 id="coding-edit",
                 name="Coding - Edit Mode",
                 description="Code refactoring, style fixes, documentation, and code improvements",
@@ -358,6 +380,26 @@ class MetaPromptSelector:
                 category="react",
                 mode="meta",
                 weight=1.2
+            ),
+            MetaPrompt(
+                id="relace-meta",
+                name="Relace - Edit Tool",
+                description="Generate precise file edit snippets for RelaceEditTool with minimal diff formatting",
+                keywords=[
+                    "relace", "edit tool", "file edit", "diff", "snippet", "patch",
+                    "code edit", "modify file", "insert", "delete", "replace",
+                    "minimal diff", "edit payload", "json edit", "code change"
+                ],
+                patterns=[
+                    r'\b(relace|edit tool|file edit|diff|patch)\b',
+                    r'\b(insert|delete|replace).*\b(code|line|function|block)',
+                    r'\b(modify|change|update).*\b(file|code)\b',
+                    r'RelaceEditTool',
+                ],
+                file_path=str(self.meta_prompt_dir / "Meta_Prompt.relace.md"),
+                category="coding",
+                mode="meta",
+                weight=1.4  # High weight for specific tool use
             ),
         ]
     
