@@ -409,6 +409,48 @@ LoadFormatterTemplates() {
     return formatterPrompts
 }
 
+GetPromptingTechniques() {
+    techniques := []
+
+    techniques.Push({
+        Key: "persistence",
+        Label: "Persistence & completeness",
+        Text: "<solution_persistence>`n- Treat yourself as an autonomous senior pair-programmer; gather context, plan, implement, test, and refine without bouncing back prematurely.`n- Persist until the task is fully handled end-to-end; avoid stopping at analysis or partial fixes.`n- Bias for action on ambiguous directives; if the right answer is ""yes,"" also do the work.`n</solution_persistence>"
+    })
+
+    techniques.Push({
+        Key: "user_updates",
+        Label: "User updates & preambles",
+        Text: "<user_updates_spec>`n- Send 1-2 sentence updates every few tool calls and at least every 6 steps/8 calls when work continues.`n- Start with a quick plan before the first tool call; note discoveries and at least one concrete outcome per update.`n- For long heads-down stretches, state why/when you'll report back; then synthesize when you return.`n- Recaps end with a checklist of items marked Done or Closed (no pending items).`n</user_updates_spec>`n<user_update_immediacy>Always explain what you're doing in a commentary message first, before sampling analysis.</user_update_immediacy>"
+    })
+
+    techniques.Push({
+        Key: "verbosity",
+        Label: "Verbosity clamp",
+        Text: "<final_answer_formatting>`n- Tiny change: 2-5 sentences or <=3 bullets; <=1 short snippet (<=3 lines) only if essential.`n- Medium change: <=6 bullets or 6-10 sentences; max 1-2 short snippets (<=8 lines).`n- Large change: summarize per file with 1-2 bullets; avoid big code; <=2 short snippets total.`n- No before/after pairs or build/log chatter unless blocking; prefer references over code fences.`n</final_answer_formatting>`n<output_verbosity_spec>`n- Respond in plain text styled in Markdown with at most 2 concise sentences when possible; lead with what you did/found; show code only when necessary.`n</output_verbosity_spec>"
+    })
+
+    techniques.Push({
+        Key: "reasoning_none",
+        Label: "Reasoning none + tool discipline",
+        Text: "<reasoning_mode_none>`n- For fast runs, prefer reasoning_effort=""none""; plan briefly before tool calls and verify arguments/paths.`n- Parallelize safe tool calls (reads/edits/search) to speed up; batch where possible.`n- Verify tool outputs against constraints (ids/prices/targets) before acting; quote critical ids back.`n- Keep going until the query is resolved; avoid premature finishes with partial steps.`n</reasoning_mode_none>"
+    })
+
+    techniques.Push({
+        Key: "plan_tool",
+        Label: "Plan tool discipline",
+        Text: "<plan_tool_usage>`n- For medium/large tasks create a 2-5 item plan; one item in_progress at a time; update statuses frequently and finish with all items completed or explicitly closed/deferred.`n- Avoid micro-steps like ""open file"" or ""run tests""; keep items outcome-focused.`n</plan_tool_usage>"
+    })
+
+    techniques.Push({
+        Key: "advanced_scaffolds",
+        Label: "Advanced prompting kit",
+        Text: "<advanced_prompting>`n- Constraint-based prompting: declare must-include, must-avoid, format, and length as non-negotiable guardrails.`n- Multi-shot with failure cases: show a good example, a bad example, and why the bad one fails before asking for the real output.`n- Metacognitive scaffolding: list 3 assumptions, edge cases, and a 2-sentence approach before the final output.`n- Differential prompting: produce two versions optimized for different goals and explain tradeoffs.`n- Specification-driven generation: write a spec (inputs/outputs/constraints/edge cases) and seek approval before implementation when appropriate.`n- Chain-of-verification: after generating, check against explicit criteria and regenerate if any fail.`n</advanced_prompting>"
+    })
+
+    return techniques
+}
+
 ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     global g_DDLProfile, g_DDLFormatter
     selection := {Profile: defaultProfile, Model: defaultModel, CustomText: "", UserText: ""}
@@ -540,13 +582,31 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     isAgentDefault := (EnvGet("PROMPTOPT_AGENT_MODE") == "1")
     chkAgentMode := guiPicker.Add("Checkbox", "x500 y241 Checked" . isAgentDefault, "Agent Mode (4-stage GPT-5.1)")
 
+    ; Prompting Techniques (optional add-ons)
+    techniques := GetPromptingTechniques()
+    techCheckboxes := Map()
+
+    guiPicker.SetFont("s10 cFFFFFF w700", "Segoe UI")
+    guiPicker.Add("Text", "x500 y270", "Prompting Techniques")
+    guiPicker.SetFont("s8 c888888", "Segoe UI")
+    guiPicker.Add("Text", "x500 y287 w220", "Optional GPT-5.1 patterns to append")
+    guiPicker.SetFont("s9 cFFFFFF", "Segoe UI")
+
+    techY := 305
+    for tech in techniques {
+        cb := guiPicker.Add("Checkbox", "x500 y" . techY . " w220", tech.Label)
+        techCheckboxes[tech.Key] := cb
+        cb.OnEvent("Click", UpdatePreview)
+        techY += 22
+    }
+
     ; Character/token count display
     guiPicker.SetFont("s8 c888888", "Segoe UI")
-    txtCharCount := guiPicker.Add("Text", "x500 y265 w220 vCharCount", "System: 0 chars | User: 0 chars")
+    txtCharCount := guiPicker.Add("Text", "x500 y" . (techY + 10) . " w220 vCharCount", "System: 0 chars | User: 0 chars")
 
     ; Keyboard shortcuts hint
     guiPicker.SetFont("s8 c666666", "Segoe UI")
-    guiPicker.Add("Text", "x500 y283", "Enter=Run | Ctrl+Shift+Wheel=Cycle")
+    guiPicker.Add("Text", "x500 y" . (techY + 28), "Enter=Run | Ctrl+Shift+Wheel=Cycle")
 
     ; ====================================================================
     ; BOTTOM SECTION - Editable Prompts
@@ -557,7 +617,7 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     guiPicker.Add("Text", "x140 y297", "(editable)")
 
     guiPicker.SetFont("s9 cFFFFFF", "Consolas")
-    editSystem := guiPicker.Add("Edit", "x20 y315 w700 h140 vSystemPrompt Background1e1e2e -Wrap")
+    editSystem := guiPicker.Add("Edit", "x20 y315 w460 h140 vSystemPrompt Background1e1e2e -Wrap")
 
     guiPicker.SetFont("s10 cFFFFFF w700", "Segoe UI")
     guiPicker.Add("Text", "x20 y465", "User Input")
@@ -565,7 +625,7 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     guiPicker.Add("Text", "x100 y467", "(your selected text)")
 
     guiPicker.SetFont("s9 cWhite", "Consolas")
-    editUser := guiPicker.Add("Edit", "x20 y485 w700 h100 vUserInput Background1e1e2e cWhite -Wrap")
+    editUser := guiPicker.Add("Edit", "x20 y485 w460 h100 vUserInput Background1e1e2e cWhite -Wrap")
     editUser.Value := inputText
 
     ; ====================================================================
@@ -676,6 +736,27 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
         }
         if (steeringText != "") {
             combined .= steeringText
+        }
+
+        ; Optional GPT-5.1 prompting techniques
+        techParts := []
+        for tech in techniques {
+            if (!techCheckboxes.Has(tech.Key))
+                continue
+            try {
+                if (techCheckboxes[tech.Key].Value) {
+                    techParts.Push("**" . tech.Label . ":**`n" . tech.Text)
+                }
+            }
+        }
+
+        if (techParts.Length > 0) {
+            techBlock := ArrayJoin(techParts, "`n`n")
+            if (combined != "") {
+                combined .= "`n`n---`n`n**Prompting Techniques:**`n" . techBlock
+            } else {
+                combined := "**Prompting Techniques:**`n" . techBlock
+            }
         }
 
         ; Update the System Prompt box
@@ -798,6 +879,9 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
         ddlAudience.Choose(1)
         ddlLength.Choose(1)
         ddlTone.Choose(1)
+        for key, cb in techCheckboxes {
+            try cb.Value := 0
+        }
         editMetaFilter.Value := ""
         editFmtFilter.Value := ""
         ; Restore lists
