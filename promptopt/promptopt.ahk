@@ -14,6 +14,9 @@ global SELECTION_FILE := A_Temp . "\promptopt_sel_" . A_TickCount . ".txt"
 global LOG_FILE := A_Temp . "\promptopt_log_" . A_TickCount . ".log"
 global CUSTOM_PROMPT_FILE := A_Temp . "\promptopt_custom_" . A_TickCount . ".txt"
 
+global g_ContextDir := ""
+global g_ContextQuery := ""
+
 ; Global references for GUI controls to allow hotkey manipulation
 global g_DDLProfile := ""
 global g_DDLFormatter := ""
@@ -164,7 +167,7 @@ if (IsSet(selected) && selected) {
         isAgentMode := selected.IsAgentMode
     }
 }
-RunPromptOpt(mode, model, profile, isInsano, isPrecise, isAgentMode)
+RunPromptOpt(mode, model, profile, isInsano, isPrecise, isAgentMode, g_ContextDir, g_ContextQuery)
 
 
 ; ====================================================================
@@ -453,7 +456,7 @@ GetPromptingTechniques() {
 
 ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     global g_DDLProfile, g_DDLFormatter
-    selection := {Profile: defaultProfile, Model: defaultModel, CustomText: "", UserText: ""}
+    selection := {Profile: defaultProfile, Model: defaultModel, CustomText: "", UserText: "", ContextDir: "", ContextQuery: ""}
 
     ; ====================================================================
     ; ENHANCED UI - PromptOpt Dashboard
@@ -636,9 +639,12 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     btnRun.Opt("+Background00aa55")
 
     guiPicker.SetFont("s10 cWhite", "Segoe UI")
-    btnCopy := guiPicker.Add("Button", "x150 y600 w100 h35", "Copy All")
-    btnClear := guiPicker.Add("Button", "x260 y600 w100 h35", "Clear")
-    btnSwap := guiPicker.Add("Button", "x370 y600 w100 h35", "Swap")
+    btnContext := guiPicker.Add("Button", "x150 y600 w120 h35", "Add Context")
+
+    guiPicker.SetFont("s10 cWhite", "Segoe UI")
+    btnCopy := guiPicker.Add("Button", "x280 y600 w100 h35", "Copy All")
+    btnClear := guiPicker.Add("Button", "x390 y600 w100 h35", "Clear")
+    btnSwap := guiPicker.Add("Button", "x500 y600 w100 h35", "Swap")
 
     ; ====================================================================
     ; DATA & EVENT HANDLERS
@@ -826,6 +832,7 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
     editUser.OnEvent("Change", UpdateCharCount)
 
     btnRun.OnEvent("Click", (*) => SubmitPicker())
+    btnContext.OnEvent("Click", (*) => ConfigureContext())
     btnCopy.OnEvent("Click", (*) => CopyPreview())
     btnClear.OnEvent("Click", (*) => ClearAll())
     btnSwap.OnEvent("Click", (*) => SwapPrompts())
@@ -949,7 +956,64 @@ ShowCustomPromptInput(currentInput := "") {
     return isSubmitted ? result : false
 }
 
-RunPromptOpt(mode, model, profile, isInsano := false, isPrecise := false, isAgentMode := false) {
+ConfigureContext() {
+    ctx := ShowContextDialog(g_ContextDir, g_ContextQuery)
+    if (!ctx) {
+        return
+    }
+    g_ContextDir := ctx.Dir
+    g_ContextQuery := ctx.Query
+}
+
+ShowContextDialog(defaultDir := "", defaultQuery := "") {
+    guiCtx := Gui("+OwnDialogs", "Context Scout")
+    guiCtx.SetFont("s10", "Segoe UI")
+
+    guiCtx.Add("Text",, "Context folder:")
+    edtDir := guiCtx.Add("Edit", "w520 vCtxDir")
+    edtDir.Value := defaultDir
+    btnBrowse := guiCtx.Add("Button", "x+10 w80", "Browse")
+
+    guiCtx.Add("Text", "y+10", "What should I search for in that folder?")
+    edtQuery := guiCtx.Add("Edit", "w610 h80 vCtxQuery")
+    edtQuery.Value := defaultQuery
+
+    btnOk := guiCtx.Add("Button", "Default w100", "OK")
+    btnCancel := guiCtx.Add("Button", "x+10 w100", "Cancel")
+
+    result := {Dir: "", Query: ""}
+    isSubmitted := false
+
+    btnBrowse.OnEvent("Click", (*) => Browse())
+    btnOk.OnEvent("Click", (*) => Submit())
+    btnCancel.OnEvent("Click", (*) => guiCtx.Destroy())
+
+    Browse() {
+        picked := DirSelect(defaultDir ? "*" . defaultDir : "", 3, "Select context folder")
+        if (picked != "") {
+            edtDir.Value := RegExReplace(picked, "\\\\$", "")
+        }
+    }
+
+    Submit() {
+        d := Trim(edtDir.Value)
+        q := Trim(edtQuery.Value)
+        if (d = "" || q = "") {
+            MsgBox("Please provide both a folder and a query.")
+            return
+        }
+        result.Dir := d
+        result.Query := q
+        isSubmitted := true
+        guiCtx.Destroy()
+    }
+
+    guiCtx.Show()
+    WinWaitClose(guiCtx)
+    return isSubmitted ? result : false
+}
+
+RunPromptOpt(mode, model, profile, isInsano := false, isPrecise := false, isAgentMode := false, contextDir := "", contextQuery := "") {
     ; Check for Insano Mode
     ; isInsano passed from args/env
     contextFile := ""
@@ -975,6 +1039,11 @@ RunPromptOpt(mode, model, profile, isInsano := false, isPrecise := false, isAgen
 
     if (contextFile) {
         cmd .= ' -ContextFilePath "' . contextFile . '"'
+    }
+
+    if (contextDir != "" && contextQuery != "") {
+        cmd .= ' -ContextDir "' . contextDir . '"'
+        cmd .= ' -ContextQuery "' . contextQuery . '"'
     }
 
     if (profile = "custom") {
@@ -1091,7 +1160,7 @@ RunPromptOpt(mode, model, profile, isInsano := false, isPrecise := false, isAgen
                     SetTimer(CheckOutput, 0)
                     try {
                         finalContent := FileRead(OUTPUT_FILE, "UTF-8")
-                        if (finalContent != "") {
+                        if (finalContent != "" && finalContent != "Initializing...") {
                             editResult.Value := finalContent
                         }
                     }
