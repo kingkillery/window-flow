@@ -1,65 +1,65 @@
 # Window-Flow Dynamic
 
-A lightweight, hybrid window switcher for Windows. AutoHotkey v2 manages the dashboard, tray menu, and slot configuration, while a small C# helper handles the activation hot path for faster window switching, monitor placement, and optional maximization.
+Native Windows window switcher built with C# and WinForms. Press `Ctrl + Alt + Space` to open a live list of currently running windows, assign them into saved slots, and cycle those slots with `Ctrl + Alt + WheelUp` / `Ctrl + Alt + WheelDown`.
 
 ## Features
 
-- **Dynamic Assignment**: Assign any open window to one of 6 slots via a dashboard UI.
-- **Instant Switching**: Cycle through assigned windows using `Ctrl + Alt + MouseWheel`.
-- **Monitor Management**: Force windows to appear on specific monitors (or follow the mouse) when activated.
-- **Optional Maximize**: Mark a slot to maximize its target after monitor placement.
-- **Persistence**: Save assignments so your setup is remembered after a restart.
-- **Auto-Elevation**: Automatically runs as Administrator to ensure it can manage all windows.
-- **Native Activation Helper**: Uses `WindowFlow.Switcher.exe` when available and falls back to the legacy AHK path otherwise.
+- **Live Window Picker**: Shows currently running windows on demand from a global hotkey.
+- **Saved Slot Cycling**: Assign chosen windows to slots and cycle them in slot order with `Ctrl + Alt + WheelUp` / `Ctrl + Alt + WheelDown`.
+- **Fast Native Activation**: Window bring-to-foreground behavior runs from C# for quick switching.
+- **Per-Slot Monitor Controls**: Choose target monitor (Auto, Mouse, or specific monitor) for each saved slot or one-off activation.
+- **Maximize + Opacity**: Optional maximize and alpha controls are available per launch.
+- **Tray Background Service**: Runs in the background with a system tray icon and hotkey support.
+- **Native Fallback**: CLI mode remains for compatibility with older scripts.
 
 ## Requirements
 
-- [AutoHotkey v2.0+](https://www.autohotkey.com/v2/)
 - Windows 10 or 11
+- .NET Framework (csc from `Framework64\v4.0.30319` used by this repo)
 
 ## Installation & Usage
 
-1. Ensure AutoHotkey v2 is installed.
-2. Build the C# helper:
+1. Build the app:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-switcher.ps1
-````
+```
 
-3. Launch `Window-Flow-Dynamic.ahk`.
+2. Launch the app:
+
+```powershell
+& ".\\bin\\WindowFlow.Switcher.exe"
+```
+
+3. Open the picker:
+
+```powershell
+# Use hotkey
+& ".\\bin\\WindowFlow.Switcher.exe" --help
+```
+
+- Press `Ctrl + Alt + Space` for normal operation.
+- Use the `Wheel slot` dropdown plus `Save Slot` in the picker to define the cycle order.
+- After saving slots, use `Ctrl + Alt + WheelUp` and `Ctrl + Alt + WheelDown` to cycle only those chosen windows.
+- If the hotkey path is blocked, run once with `--open` to force the picker open at startup.
+
+```powershell
+& ".\\bin\\WindowFlow.Switcher.exe" --open
+```
 
 ## Controls
 
-| Shortcut                   | Action                                       |
-| -------------------------- | -------------------------------------------- |
-| **Ctrl + Alt + Space**     | Toggle the Dashboard to view/configure slots |
-| **Ctrl + Alt + WheelUp**   | Cycle to the previous slot                   |
-| **Ctrl + Alt + WheelDown** | Cycle to the next slot                       |
-| **Esc**                    | Close Dashboard / Cancel Capture             |
-
-## How to Use
-
-1. **Open the Dashboard**: Press `Ctrl + Alt + Space`.
-
-2. **Assign a Window**:
-
-   * Click the **Set** button next to an empty slot (or overwrite an existing one).
-   * The dashboard will hide. Click on the window you want to assign.
-
-3. **Configure Options**:
-
-   * **Save Checkbox**: If checked, the app remembers the process name (e.g., `chrome.exe`). If you close the app and reopen it later, Window-Flow will try to find it again.
-   * **Monitor Button**: Click the "Auto" button to cycle through modes:
-
-     * **Auto**: Windows appear where they were.
-     * **Mon 1 / Mon 2**: Force window to center on a specific monitor.
-     * **Mouse**: Force window to center on the monitor where your mouse currently is.
-   * **Max Checkbox**: If checked, the target window is maximized after it is moved to the selected monitor.
+| Shortcut               | Action                                      |
+| ---------------------- | ------------------------------------------- |
+| **Ctrl + Alt + Space** | Open the running window picker. |
+| **Ctrl + Alt + WheelUp** | Activate the previous saved slot. |
+| **Ctrl + Alt + WheelDown** | Activate the next saved slot. |
+| **Esc**                | Close the picker. |
+| **Enter / Double click** | Activate selected window. |
 
 ## Files
 
-* `Window-Flow-Dynamic.ahk`: The main application script.
-* `src/WindowFlow.Switcher/Program.cs`: Native window activation helper.
-* `scripts/build-switcher.ps1`: Builds the helper into `bin/WindowFlow.Switcher.exe`.
-* `settings.ini`: Automatically generated file that stores your slot configurations.
+* `src/WindowFlow.Switcher/Program.cs`: Native WinForms launcher + switcher.
+* `scripts/build-switcher.ps1`: Builds `bin/WindowFlow.Switcher.exe`.
+* `Window-Flow-Dynamic.ahk`: Legacy AHK script retained for historical reference only.
 

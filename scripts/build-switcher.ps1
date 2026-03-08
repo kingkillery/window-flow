@@ -23,6 +23,7 @@ New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     /out:$output `
     /r:System.dll `
     /r:System.Drawing.dll `
+    /r:System.Windows.Forms.dll `
     $source
 
 if ($LASTEXITCODE -ne 0) {
