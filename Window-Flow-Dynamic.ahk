@@ -30,6 +30,7 @@ global g_OverlayGui := 0
 global g_PresetEditorGui := 0
 global g_NewPresetGui := 0
 global g_PresetEditorRowKeys := []
+global g_WindowChoices := Map()
 global g_CurrentSlotIndex := 0
 global g_MonitorCount := MonitorGetCount()
 global g_DwmEnabled := DwmIsEnabled()
@@ -439,12 +440,12 @@ CreateDashboard() {
 
     Loop MAX_SLOTS {
         index := A_Index
-        yPos := 40 + ((index - 1) * 110)
+        yPos := 40 + ((index - 1) * 136)
 
         g_DashboardGui.Add("Text", "x10 y" yPos " w700 h1 Background0x00f3ff")
-        g_DashboardGui.Add("Text", "x10 y" yPos + 105 " w700 h1 Background0x00f3ff")
-        g_DashboardGui.Add("Text", "x10 y" yPos " w1 h105 Background0x00f3ff")
-        g_DashboardGui.Add("Text", "x710 y" yPos " w1 h106 Background0x00f3ff")
+        g_DashboardGui.Add("Text", "x10 y" yPos + 131 " w700 h1 Background0x00f3ff")
+        g_DashboardGui.Add("Text", "x10 y" yPos " w1 h131 Background0x00f3ff")
+        g_DashboardGui.Add("Text", "x710 y" yPos " w1 h132 Background0x00f3ff")
 
         previewBox := g_DashboardGui.Add("Text", "x20 y" yPos + 8 " w140 h88 Background0x0a0a0a", "")
         g_Slots[index].PreviewBox := previewBox
@@ -473,12 +474,22 @@ CreateDashboard() {
         g_Slots[index].GuiLabelText := labelText
 
         g_DashboardGui.SetFont("s8 c7f8b94", "Segoe UI")
-        g_DashboardGui.Add("Text", "x440 y" yPos + 26 " w190 h14 BackgroundTrans", "Alias distinguishes same-label windows")
+        g_DashboardGui.Add("Text", "x440 y" yPos + 26 " w230 h14 BackgroundTrans", "Alias distinguishes same-label windows")
         g_DashboardGui.SetFont("s9 cFFFFFF", "Segoe UI")
         g_DashboardGui.Add("Text", "x440 y" yPos + 46 " w34 h18 BackgroundTrans", "Alias")
-        aliasEdit := g_DashboardGui.Add("Edit", "x478 y" yPos + 40 " w150 h24", g_Slots[index].alias)
+        aliasEdit := g_DashboardGui.Add("Edit", "x478 y" yPos + 40 " w196 h24", g_Slots[index].alias)
         aliasEdit.OnEvent("Change", ((i, ctrl, *) => SetSlotAlias(i, ctrl.Text)).Bind(index))
         g_Slots[index].GuiAlias := aliasEdit
+
+        g_DashboardGui.SetFont("s8 c7f8b94", "Segoe UI")
+        g_DashboardGui.Add("Text", "x170 y" yPos + 66 " w230 h14 BackgroundTrans", "Choose from currently running windows")
+        g_DashboardGui.SetFont("s9 cFFFFFF", "Segoe UI")
+        picker := g_DashboardGui.Add("ComboBox", "x170 y" yPos + 82 " w390", [])
+        g_Slots[index].GuiWindowPicker := picker
+        picker.OnEvent("DoubleClick", ((i, *) => AssignSelectedWindow(i)).Bind(index))
+        btnAssign := g_DashboardGui.Add("Button", "x570 y" yPos + 80 " w104 h26", "Assign")
+        btnAssign.OnEvent("Click", ((i, *) => AssignSelectedWindow(i)).Bind(index))
+        g_Slots[index].GuiAssignBtn := btnAssign
 
         g_Slots[index].GuiMonBtns := Map()
         MakeMonBtn(label, val, xOff) {
@@ -493,26 +504,26 @@ CreateDashboard() {
         g_Slots[index].GuiMonBtns[99] := MakeMonBtn("[M]", 99, 84)
 
         g_DashboardGui.SetFont("s9 Bold cFFFFFF", "Segoe UI")
-        btnSet := g_DashboardGui.Add("Button", "x170 y" yPos + 70 " w130 h26", "[+] SET TARGET")
+        btnSet := g_DashboardGui.Add("Button", "x170 y" yPos + 108 " w130 h26", "[+] CLICK TARGET")
         btnSet.OnEvent("Click", ((i, *) => StartCapture(i)).Bind(index))
 
         g_DashboardGui.SetFont("s9 cFFFFFF", "Segoe UI")
-        g_DashboardGui.Add("Text", "x315 y" yPos + 74 " w45 h22 BackgroundTrans", "Opacity")
-        slider := g_DashboardGui.Add("Slider", "x365 y" yPos + 70 " w115 h26 Range25-255 ToolTip", g_Slots[index].transparency)
+        g_DashboardGui.Add("Text", "x315 y" yPos + 112 " w45 h22 BackgroundTrans", "Opacity")
+        slider := g_DashboardGui.Add("Slider", "x365 y" yPos + 108 " w115 h26 Range25-255 ToolTip", g_Slots[index].transparency)
         slider.OnEvent("Change", ((i, ctrl, *) => SetTransparency(i, ctrl.Value)).Bind(index))
         g_Slots[index].GuiSlider := slider
 
         g_DashboardGui.SetFont("s9 c00f3ff", "Segoe UI")
-        chk := g_DashboardGui.Add("Checkbox", "x482 y" yPos + 72 " w88 h24 vChk" index, "Saved")
+        chk := g_DashboardGui.Add("Checkbox", "x482 y" yPos + 110 " w88 h24 vChk" index, "Saved")
         chk.OnEvent("Click", ((i, *) => ToggleSave(i)).Bind(index))
         g_Slots[index].GuiCheck := chk
 
         g_DashboardGui.SetFont("s9 c00f3ff", "Segoe UI")
-        maximizeChk := g_DashboardGui.Add("Checkbox", "x574 y" yPos + 72 " w58 h24", "Max")
+        maximizeChk := g_DashboardGui.Add("Checkbox", "x574 y" yPos + 110 " w58 h24", "Max")
         maximizeChk.OnEvent("Click", ((i, ctrl, *) => ToggleMaximize(i, ctrl.Value)).Bind(index))
         g_Slots[index].GuiMaxCheck := maximizeChk
 
-        outlineChk := g_DashboardGui.Add("Checkbox", "x636 y" yPos + 72 " w68 h24", "Outline")
+        outlineChk := g_DashboardGui.Add("Checkbox", "x636 y" yPos + 110 " w68 h24", "Outline")
         outlineChk.OnEvent("Click", ((i, ctrl, *) => ToggleBorder(i, ctrl.Value)).Bind(index))
         g_Slots[index].GuiBorderCheck := outlineChk
     }
@@ -747,6 +758,7 @@ UpdateDashboardSlot(index) {
 
 RefreshDashboard() {
     global MAX_SLOTS
+    RefreshWindowChoices()
     Loop MAX_SLOTS
         UpdateDashboardSlot(A_Index)
     ValidateAllWindows()
@@ -931,6 +943,105 @@ StartCapture(index) {
 
     ToolTip()
     g_DashboardGui.Show()
+}
+
+RefreshWindowChoices() {
+    global g_WindowChoices, g_Slots, MAX_SLOTS
+    choices := GetAvailableWindowChoices()
+    g_WindowChoices := Map()
+
+    displayItems := []
+    for _, item in choices {
+        displayItems.Push(item.display)
+        g_WindowChoices[item.display] := item.hwnd
+    }
+
+    Loop MAX_SLOTS {
+        slot := g_Slots[A_Index]
+        if (slot.GuiWindowPicker) {
+            currentText := slot.GuiWindowPicker.Text
+            slot.GuiWindowPicker.Delete()
+            if (displayItems.Length)
+                slot.GuiWindowPicker.Add(displayItems)
+            slot.GuiWindowPicker.Text := ""
+            if (currentText != "" && g_WindowChoices.Has(currentText))
+                slot.GuiWindowPicker.Text := currentText
+        }
+    }
+}
+
+GetAvailableWindowChoices() {
+    global g_DashboardGui
+    items := []
+
+    for hwnd in WinGetList() {
+        if !WinExist("ahk_id " hwnd)
+            continue
+        if (g_DashboardGui && hwnd = g_DashboardGui.Hwnd)
+            continue
+
+        try {
+            if !WinGetTitle("ahk_id " hwnd) && !WinGetProcessName("ahk_id " hwnd)
+                continue
+            if !WinShown("ahk_id " hwnd)
+                continue
+            if (WinGetMinMax("ahk_id " hwnd) == -1)
+                continue
+
+            title := Trim(WinGetTitle("ahk_id " hwnd))
+            process := WinGetProcessName("ahk_id " hwnd)
+        } catch {
+            continue
+        }
+
+        if (title == "")
+            title := process
+
+        display := BuildWindowChoiceText(title, process, hwnd)
+        items.Push({ hwnd: hwnd, display: display })
+    }
+
+    return items
+}
+
+WinShown(winTitle) {
+    try return DllCall("IsWindowVisible", "Ptr", WinExist(winTitle), "Int")
+    catch
+        return false
+}
+
+BuildWindowChoiceText(title, process, hwnd) {
+    cleanTitle := StrReplace(title, "|", "/")
+    cleanTitle := StrReplace(cleanTitle, "`r", " ")
+    cleanTitle := StrReplace(cleanTitle, "`n", " ")
+    cleanProcess := StrReplace(process, "|", "/")
+    if (StrLen(cleanTitle) > 48)
+        cleanTitle := SubStr(cleanTitle, 1, 45) "..."
+    return cleanTitle " [" cleanProcess "] {" hwnd "}"
+}
+
+AssignSelectedWindow(index) {
+    global g_Slots, g_WindowChoices
+    picker := g_Slots[index].GuiWindowPicker
+    if !picker
+        return
+
+    selected := Trim(picker.Text)
+    if (selected == "") {
+        MsgBox("Choose a running window from the list first.")
+        return
+    }
+
+    if !g_WindowChoices.Has(selected) {
+        RefreshWindowChoices()
+        if !g_WindowChoices.Has(selected) {
+            MsgBox("That window is no longer available. Refresh the dashboard and try again.")
+            return
+        }
+    }
+
+    AssignWindow(index, g_WindowChoices[selected])
+    RefreshWindowChoices()
 }
 
 AssignWindow(index, hwnd) {
