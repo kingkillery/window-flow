@@ -1,354 +1,449 @@
 # Formatter Ability Prompts
 
-Formats are ordered from easiest for humans and LLMs to skim to the most structured/demanding. Pick the simplest format that fits the task; move down the list for stricter machine-readable outputs. **Always return only the reformatted content—no preambles, chit-chat, or closing remarks.**
+## Concise
+Strip to absolute essentials. Maximum information density. Output starts immediately.
 
-**Output contract**
-- The first non-whitespace character in the response must belong to the desired format (e.g., `#`, `<`, `{`, `[`, or the first word of the content).
-- Do not include lead-ins such as “Below is…”, “Here’s…”, or any meta commentary.
-- Do not add closing summaries or sign-offs; end exactly at the last character of the formatted content.
+RULES:
+- Remove all filler words and redundancy
+- One idea per line maximum
+- No adjectives unless critical to meaning
+- Abbreviate where unambiguous
+- Target: 50% or less of original length
 
-## 1. Easy to Read
-You are a communication expert specializing in clarity. Reformat the input to be as scannable and readable as possible.
-- Use bullet points and short paragraphs.
-- **Bold** key terms and important constraints.
-- Use whitespace to separate distinct ideas.
-- Summarize long blocks of text into concise points.
+FORBIDDEN:
+- "Here is…", "Below is…", "I've condensed…"
+- Any preamble or postamble
+- Explanations of what was removed
+- Unnecessary punctuation
 
-## 2. Easiest to Understand Underlying Logic
-You are a pedagogical expert. Reformat the input to clearly explain the core logic and relationships.
-- Use **step-by-step explanations** for processes.
-- Illustrate concepts with **simple examples**.
-- Define technical terms clearly.
-- Highlight cause-and-effect relationships.
+Output the condensed content now:
 
-## 3. Teaching Mode Logic Breakdown
-You are teaching a new teammate. Lay out the logic plainly with examples.
-- Walk through the process in ordered steps.
-- Call out key terms so they are easy to memorize.
-- Provide a short example for the main rule.
+## Easy to Read
+Reformat for maximum scannability. Output starts immediately with content.
 
-## 4. Markdown Format
-You are a documentation expert. Reformat into a clean, standard Markdown structure.
-- Structure:
-  - `# Task` with **Description** and **Details**
-  - `# Codebase` fenced block for any code or snippets
-  - `# Context` as a blockquote
-- Keep spacing readable and preserve all information.
+RULES:
+- Bullet points and short paragraphs only
+- **Bold** key terms and constraints
+- Whitespace separates distinct ideas
+- Condense verbose blocks into concise points
 
-## 5. Human-First “Checklist + Flow” Format
-You are optimizing for fast scanning by humans while staying LLM-friendly.
-- Include a checklist for readiness items.
-- Provide a short numbered flow for execution.
-- Add an example decision or branch if helpful.
+FORBIDDEN:
+- "Here is…", "Below is…", "I've reformatted…"
+- Any preamble or postamble
+- Explanations of what you did
+- Sign-offs or summaries about the reformatting
 
-```markdown
-# Feature Flag Rollout
+Output the reformatted content now:
 
-### Checklist
-- [ ] Flag exists in config
-- [ ] Default is `off`
-- [ ] Metrics dashboard is ready
-- [ ] Rollback plan is documented
+## Executive Summary
+TL;DR first, then structured details. First line must be the summary.
 
-### Flow
-1. Enable flag for **internal users**.
-2. Observe metrics for **30 minutes**.
-3. If error rate < 1%:
-   - Increase rollout to **10% of users**.
-4. If error rate ≥ 1%:
-   - Disable flag.
-   - Create incident ticket.
+STRUCTURE:
+- **TL;DR:** One-sentence summary (mandatory first line)
+- **Key Points:** 3-5 bullets of critical info
+- **Details:** Expanded sections if needed
+- **Action Items:** What to do next (if applicable)
 
-### Example Decision
-- If error rate spikes to 2% at 10% rollout:
-  - Immediately disable flag.
-  - Capture logs for investigation.
+FORBIDDEN:
+- Any text before "TL;DR:"
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Burying the lead
+
+Output the executive summary now:
+
+## Q&A Format
+Restructure as clear question-answer pairs. First character must be `Q`.
+
+STRUCTURE:
+- Q: [Clear, specific question]
+- A: [Direct answer, then elaboration if needed]
+- Group related Q&As under headers if many
+- Most important/common questions first
+
+FORBIDDEN:
+- Any text before the first "Q:"
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Vague or rhetorical questions
+
+Output the Q&A now:
+
+## Decision Tree
+Visualize branching logic as indented decision paths. Output starts immediately.
+
+STRUCTURE:
+- Start with the initial condition/question
+- Use → for outcomes
+- Indent nested decisions
+- Format: `IF [condition] → [action/next decision]`
+- Mark terminal states with ✓ or ✗
+
+EXAMPLE:
+```
+IF user authenticated?
+  → YES: IF has permission?
+    → YES: ✓ Allow access
+    → NO: ✗ Show 403 error
+  → NO: → Redirect to login
 ```
 
-## 6. Instruction Blocks for LLM Prompts
-You are giving a model tightly scoped behavior. Separate goals, inputs, and outputs.
+FORBIDDEN:
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Prose explanations instead of tree structure
 
-```markdown
-# Role
-You are a security reviewer for infrastructure changes.
+Output the decision tree now:
 
-# Objectives
-1. Identify security risks.
-2. Suggest concrete mitigations.
-3. Flag missing information.
+## Prose
+Reformat as flowing, readable paragraphs. Output starts immediately.
 
-# Input Format
-```input
-[Change description]
-[Proposed infra diagram or explanation]
-[Relevant configs or policies]
+RULES:
+- Complete sentences in logical paragraphs
+- Smooth transitions between ideas
+- No bullet points or lists
+- Professional but accessible tone
+- Vary sentence length for rhythm
+
+FORBIDDEN:
+- "Here is…", "Below is…"
+- Any preamble or postamble
+- Bullet points or numbered lists
+- Choppy, disconnected sentences
+
+Output the prose now:
+
+## Logic Breakdown
+Reformat to expose core logic and relationships. Output starts immediately.
+
+RULES:
+- Step-by-step explanations for processes
+- Simple examples to illustrate concepts
+- Define technical terms inline
+- Highlight cause→effect relationships
+- Explicit conditions: "If X → Y"
+
+FORBIDDEN:
+- "Here is…", "Below is…", "I've reformatted…"
+- Any preamble or postamble
+- Meta-commentary about the reformatting
+
+Output the reformatted content now:
+
+## Teaching Mode
+Reformat as if teaching a new teammate. Output starts immediately.
+
+RULES:
+- Ordered steps for processes
+- Key terms called out clearly
+- Short example for the main rule
+- "Why" explanations for non-obvious rules
+- Build from simple to complex
+
+FORBIDDEN:
+- "Here is…", "Let me explain…", "I'll walk you through…"
+- Any preamble or postamble
+- Meta-commentary
+- Assuming prior knowledge
+
+Output the reformatted content now:
+
+## Checklist + Flow
+Reformat for fast human execution. First character must be `#`.
+
+STRUCTURE:
+- `# [Title]`
+- `## Prerequisites` (if any)
+- `## Checklist` with `- [ ]` items
+- `## Flow` with numbered steps and conditionals
+- `## Rollback` (if applicable)
+
+FORBIDDEN:
+- Any text before the first `#`
+- "Here is…", "Below is…"
+- Preamble, postamble, code fences wrapping the output
+
+Output the checklist+flow now:
+
+## API Documentation
+Reformat as API/endpoint documentation. First character must be `#`.
+
+STRUCTURE:
+- `# Endpoint Name`
+- `## Method & Path` - GET/POST/etc + route
+- `## Description` - What it does
+- `## Parameters` - Table with name, type, required, description
+- `## Request Body` - JSON schema if applicable
+- `## Response` - Success and error responses
+- `## Example` - curl or code snippet
+
+FORBIDDEN:
+- Any text before the first `#`
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Missing parameter types
+
+Output the API documentation now:
+
+## Test Cases
+Reformat as structured test cases. First character must be `#`.
+
+STRUCTURE:
+- `# Test: [Name]`
+- `## Given` - Initial state/preconditions
+- `## When` - Action taken
+- `## Then` - Expected outcome
+- `## Edge Cases` - Boundary conditions to test
+
+For multiple tests, repeat the structure with clear separation.
+
+FORBIDDEN:
+- Any text before the first `#`
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Vague assertions ("should work correctly")
+
+Output the test cases now:
+
+## Spec Document
+Reformat as a crisp design/requirements spec. First character must be `#`.
+
+STRUCTURE:
+- `# Purpose` - what this spec covers
+- `# Inputs` - parameters/data with types
+- `# Rules` - numbered constraints
+- `# Logic` - numbered procedure steps
+- `# Edge Cases` - boundary conditions
+- `# Example` - concrete illustration
+
+FORBIDDEN:
+- Any text before the first `#`
+- "Here is…", "Below is…"
+- Preamble, postamble, code fences wrapping the output
+
+Output the spec now:
+
+## LLM Instructions
+Reformat as tightly scoped LLM system prompt. First character must be `#`.
+
+STRUCTURE:
+- `# Role` - what the model is
+- `# Objective` - primary goal
+- `# Input Format` - expected inputs
+- `# Output Format` - expected outputs
+- `# Rules` - behavioral constraints
+- `# Examples` - input/output pairs
+
+FORBIDDEN:
+- Any text before the first `#`
+- "Here is…", "Below is…"
+- Preamble, postamble, code fences wrapping the entire output
+- Vague instructions
+
+Output the instruction blocks now:
+
+## Pseudocode
+Reformat as logic map with pseudocode. First character must be `#`.
+
+STRUCTURE:
+- `# [Topic]`
+- `## Inputs` - what goes in
+- `## Logic` - pseudocode block
+- `## Output` - what comes out
+
+Use clear pseudocode conventions:
+- IF/ELSE, FOR/WHILE, RETURN
+- Indent for nesting
+- Comments with //
+
+FORBIDDEN:
+- Any text before the first `#`
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Actual programming language syntax
+
+Output the pseudocode now:
+
+## YAML Playbook
+Reformat as YAML ops runbook. First character must be `p` (playbook:).
+
+STRUCTURE:
 ```
-
-# Output Format
-
-```output
-### Risks
-- [risk 1]
-- [risk 2]
-
-### Mitigations
-- [mitigation 1]
-- [mitigation 2]
-
-### Missing Info
-- [question 1]
-- [question 2]
-```
-
-# Constraints
-
-* Focus only on security.
-* Do not comment on performance unless it affects security.
-```
-
-## 7. Markdown “Logic Map” with Pseudocode
-You are explaining flows to humans while staying LLM-friendly.
-
-````markdown
-# Decision Logic: Choosing Cache Strategy
-
-### Conditions
-- **If** data changes rarely → prefer **long-lived cache**.
-- **If** data changes frequently → prefer **short-lived cache**.
-- **If** consistency is critical → **bypass cache** for writes.
-
-### Pseudocode
-
-```pseudo
-function shouldUseCache(resource):
-    if resource.isHighlyDynamic:
-        return "short_ttl"
-    else if resource.isMostlyStatic:
-        return "long_ttl"
-    else:
-        return "no_cache"
-
-function handleRequest(request):
-    strategy = shouldUseCache(request.resource)
-
-    if strategy == "no_cache":
-        return fetchFromSource()
-
-    cache_key = buildKey(request)
-    cached_value = readCache(cache_key)
-
-    if cached_value exists:
-        return cached_value
-
-    value = fetchFromSource()
-    writeCache(cache_key, value, ttl_for(strategy))
-    return value
-```
-````
-
-## 8. Logic Focused
-You are a systems architect. Highlight the underlying logic and flow.
-- Break down complex procedures into numbered steps.
-- Explicitly state conditions (If X, then Y).
-- Group related logical units together.
-- Use pseudocode-like structures where appropriate.
-
-## 9. “Spec” Markdown Pattern
-You are drafting a crisp design/requirements spec for humans and LLMs.
-
-```markdown
-# Purpose
-Explain how the API rate limiter works and how to tune it.
-
-# Inputs
-- `user_id`: unique identifier for the caller
-- `endpoint`: which API path is called
-- `timestamp`: request time
-
-# Rules
-1. Each `user_id` has a **per-minute** quota.
-2. Each `endpoint` may define a **stricter** quota.
-3. If the endpoint quota and user quota conflict, **use the stricter**.
-
-# Logic (Step-by-step)
-1. Compute `user_window_key = (user_id, window_start_minute)`.
-2. Increment `user_window_count`.
-3. Compute `endpoint_window_key = (endpoint, window_start_minute)`.
-4. Increment `endpoint_window_count`.
-5. If `user_window_count > user_limit` → **reject**.
-6. Else if `endpoint_window_count > endpoint_limit` → **reject**.
-7. Else → **allow**.
-
-# Example
-- User limit: 100/min
-- Endpoint `/search` limit: 30/min
-If user calls `/search` 40 times in 1 minute:
-- Calls 1–30 → allowed
-- Calls 31–40 → rejected (endpoint limit hit first)
-```
-
-## 10. YAML “Playbook” Style
-You are writing an ops runbook with prechecks, steps, and rollback.
-
-```yaml
 playbook:
-  name: "Database failover"
-  goal: "Promote replica to primary with minimal downtime."
+  name: [descriptive name]
+  goal: [what this achieves]
 
-  prechecks:
-    - "Replica is in sync (lag < 2s)."
-    - "All writes are paused."
+prechecks:
+  - [condition to verify before starting]
 
+steps:
+  - step: [description]
+    command: [action to take]
+    on_failure: [what to do if fails]
+
+postchecks:
+  - [condition to verify after completion]
+
+rollback:
+  description: [when/why to rollback]
   steps:
-    - step: "Confirm replica health"
-      command: "check_replica_health.sh"
-      if_failure: "Abort and page DBA."
-
-    - step: "Promote replica"
-      command: "promote_replica.sh"
-      if_failure: "Rollback promotion and re-enable primary."
-
-    - step: "Update app config"
-      description: "Point app to new primary."
-
-  postchecks:
-    - "All services can connect to new primary."
-    - "No replication errors."
-
-  rollback:
-    description: "If promotion fails after step 2."
-    steps:
-      - "Restore original primary as active."
-      - "Rebuild replica from backup."
+    - [rollback action]
 ```
 
-## 11. XML Format
-You are organizing codebase context in a simple, structured XML wrapper.
+FORBIDDEN:
+- Any text before `playbook:`
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Code fences (```yaml) wrapping the output
 
-```xml
-<task>
-    <description>[Description]</description>
-    <details>[Details]</details>
-</task>
-<codebase>
-    [Codebase content]
-</codebase>
-<context>
-    [Context content]
-</context>
+Output raw YAML now:
+
+## XML Structured
+Reformat as structured XML. First character must be `<`.
+
+STRUCTURE:
+```
+<document>
+  <summary>...</summary>
+  <sections>
+    <section title="...">
+      <content>...</content>
+    </section>
+  </sections>
+  <metadata>
+    <created>...</created>
+    <tags>...</tags>
+  </metadata>
+</document>
 ```
 
-Keep content clean and consistently indented.
+FORBIDDEN:
+- Any text before `<`
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Code fences (```xml) wrapping the output
 
-## 12. Logic-Block XML
-You are building a strict, rule-engine friendly XML spec.
+Output raw XML now:
 
-```xml
-<spec>
-  <goal>
-    Explain the deployment pipeline clearly and briefly.
-  </goal>
+## JSON Contract
+Reformat as machine-consumable JSON. First character must be `{`.
 
-  <constraints>
-    <constraint>Be concise.</constraint>
-    <constraint>No emojis.</constraint>
-    <constraint>Assume reader is a senior engineer.</constraint>
-  </constraints>
-
-  <inputs>
-    <input name="branch">Git branch name to deploy.</input>
-    <input name="environment">Target environment (staging|prod).</input>
-  </inputs>
-
-  <process>
-    <step order="1">
-      <condition>IF environment == "staging"</condition>
-      <action>Run smoke tests only.</action>
-    </step>
-    <step order="2">
-      <condition>IF environment == "prod"</condition>
-      <action>Run full test suite and security checks.</action>
-    </step>
-  </process>
-
-  <outputs>
-    <output>Deployment status summary.</output>
-    <output>List of failed checks (if any).</output>
-  </outputs>
-</spec>
+STRUCTURE:
 ```
-
-## 13. JSON “Contract” Format
-You are defining a strict, machine-consumable contract.
-
-```json
 {
-  "task": {
-    "description": "Summarize user logs for anomalies.",
-    "audience": "SRE on call"
-  },
+  "title": "...",
+  "description": "...",
   "inputs": {
-    "log_window_minutes": {
-      "type": "integer",
-      "default": 60
-    },
-    "severity_threshold": {
-      "type": "string",
-      "enum": ["info", "warning", "error"],
-      "default": "warning"
-    }
+    "param": {"type": "string", "required": true, "description": "..."}
   },
   "logic": [
-    {
-      "if": "severity_threshold == 'warning'",
-      "then": "include logs with level >= warning"
-    },
-    {
-      "if": "severity_threshold == 'error'",
-      "then": "include logs with level == error"
-    }
+    {"if": "condition", "then": "action"}
   ],
-  "outputs": [
-    "summary_text",
-    "top_3_unusual_patterns"
-  ],
-  "constraints": [
-    "Do not include raw PII.",
-    "Limit summary to <= 200 words."
-  ]
+  "outputs": ["..."],
+  "constraints": ["..."]
 }
 ```
 
-## 14. Tag-Based “Instruction DSL” for LLMs
-You are separating rules, examples, and edge cases explicitly with tags. Use for maximum parsing rigidity.
+FORBIDDEN:
+- Any text before `{`
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Code fences (```json) wrapping the output
+- Invalid JSON syntax
 
-```text
+Output raw JSON now:
+
+## Tagged DSL
+Reformat as tag-based instruction DSL. First character must be `<`.
+
+STRUCTURE:
+```
 <INSTRUCTIONS>
-  <GOAL>
-    Generate SQL queries from natural language questions.
-  </GOAL>
-
-  <SCHEMA>
-    tables: users(id, email, created_at), orders(id, user_id, total, created_at)
-  </SCHEMA>
-
+  <GOAL>...</GOAL>
+  <CONTEXT>...</CONTEXT>
   <RULES>
-    - Always return only the SQL query.
-    - Never drop or truncate tables.
-    - Use ANSI SQL.
+    - rule1
+    - rule2
   </RULES>
-
   <EXAMPLES>
     <EXAMPLE>
-      <Q>Count users created yesterday</Q>
-      <A>SELECT COUNT(*) FROM users WHERE created_at::date = CURRENT_DATE - INTERVAL '1 day';</A>
+      <INPUT>...</INPUT>
+      <OUTPUT>...</OUTPUT>
     </EXAMPLE>
   </EXAMPLES>
-
-  <EDGE_CASES>
-    - If question is ambiguous, ask a clarification question.
-    - If schema is insufficient, state the limitation.
-  </EDGE_CASES>
+  <CONSTRAINTS>...</CONSTRAINTS>
 </INSTRUCTIONS>
 ```
 
+FORBIDDEN:
+- Any text before `<INSTRUCTIONS>`
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Code fences wrapping the output
+
+Output raw tagged content now:
+
+## Mermaid Diagram
+Reformat as Mermaid diagram syntax. First line must be diagram type.
+
+SUPPORTED TYPES:
+- `flowchart TD` - top-down flowchart
+- `sequenceDiagram` - interaction sequence
+- `stateDiagram-v2` - state machine
+- `erDiagram` - entity relationship
+
+RULES:
+- Choose most appropriate diagram type
+- Use clear, short node labels
+- Show all relationships/transitions
+- Add notes for complex logic
+
+FORBIDDEN:
+- Any text before diagram declaration
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Code fences (```mermaid) wrapping the output
+
+Output raw Mermaid syntax now:
+
+## Table Format
+Reformat as clean markdown tables. First character must be `|`.
+
+RULES:
+- Use tables for structured/comparative data
+- Clear, concise column headers
+- Align columns appropriately
+- One table per logical grouping
+- Add brief headers above tables if multiple
+
+FORBIDDEN:
+- Any text before the first `|`
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Inconsistent column counts
+
+Output the table(s) now:
+
+## Changelog
+Reformat as a changelog/release notes. First character must be `#`.
+
+STRUCTURE:
+- `# Changelog` or `# [Version]`
+- `## Added` - new features
+- `## Changed` - modifications
+- `## Fixed` - bug fixes
+- `## Removed` - removed features
+- `## Security` - security patches (if any)
+
+RULES:
+- Most recent changes first
+- One line per change
+- Start each line with action verb
+
+FORBIDDEN:
+- Any text before the first `#`
+- "Here is…", "Below is…"
+- Preamble, postamble
+- Vague descriptions ("various fixes")
+
+Output the changelog now:

@@ -9,6 +9,16 @@ from typing import Optional, Generator
 import traceback
 import time
 
+# Import agent mode prompts
+try:
+    from agent_mode_prompts import (
+        STAGE1_PROMPT, STAGE2_PROMPT, STAGE3_PROMPT, STAGE4_PROMPT,
+        STAGE5_PROMPT, STAGE5_REWRITE_PROMPT, AGENT_MODE_SYSTEM
+    )
+    AGENT_MODE_AVAILABLE = True
+except ImportError:
+    AGENT_MODE_AVAILABLE = False
+
 
 def dbg(msg: str) -> None:
     try:
@@ -203,6 +213,195 @@ def try_call(base_url: str, model: str, sys_prompt: str, user_input: str, api_ke
         return post_json(f"{lb}/chat/completions", payload, api_key, timeout_sec=timeout_sec)
 
 
+def call_api_simple(base_url: str, model: str, sys_prompt: str, user_input: str, api_key: str, timeout_sec: int = 60) -> str:
+    """Simple API call that returns the response text. Used for agent mode stages."""
+    resp = try_call(base_url, model, sys_prompt, user_input, api_key, timeout_sec)
+    return extract_output_text(resp)
+
+
+def call_api_streaming(base_url: str, model: str, sys_prompt: str, user_input: str, api_key: str, output_file: str, timeout_sec: int = 60) -> str:
+    """Streaming API call that writes chunks to file and returns full response. Used for agent mode streaming."""
+    full_response = []
+    for piece in try_stream(base_url, model, sys_prompt, user_input, api_key, timeout_sec):
+        full_response.append(piece)
+        # Append each chunk to the output file for live preview
+        try:
+            with open(output_file, 'a', encoding='utf-8', newline='') as f:
+                f.write(piece)
+        except Exception:
+            pass
+    return ''.join(full_response)
+
+
+def run_agent_mode(user_input: str, model: str, base_url: str, api_key: str, output_file: str, timeout_sec: int = 60, streaming: bool = False, enable_eval: bool = False) -> int:
+    """
+    Execute 5-stage Agent Mode pipeline with GPT-5.1 best practices.
+    Writes progress to output_file for live streaming display.
+
+    Args:
+        user_input: The prompt/task to optimize
+        model: Model to use for optimization
+        base_url: API base URL
+        api_key: API key
+        output_file: File to write progress/results to
+        timeout_sec: Timeout per API call
+        streaming: If True, stream each stage's output live to file
+        enable_eval: If True, run Stage 5 self-eval pass
+
+    Returns: 0 on success, 1 on error
+    """
+    if not AGENT_MODE_AVAILABLE:
+        dbg("Agent mode prompts not available")
+        return 1
+
+    total_stages = 5 if enable_eval else 4
+    dbg(f"Starting Agent Mode pipeline ({total_stages} stages, streaming={streaming})")
+
+    # Clear output file
+    try:
+        with open(output_file, 'w', encoding='utf-8', newline='') as f:
+            f.write(f"Agent Mode: Starting {total_stages}-stage optimization...\n\n")
+    except Exception as e:
+        dbg(f"Failed to clear output file: {e}")
+        return 1
+
+    def write_stage_header(stage_name: str):
+        """Write stage header for streaming mode."""
+        try:
+            with open(output_file, 'a', encoding='utf-8', newline='') as f:
+                f.write(f'<STAGE name="{stage_name}">\n')
+        except Exception as e:
+            dbg(f"Failed to write stage header: {e}")
+
+    def write_stage_footer():
+        """Write stage footer for streaming mode."""
+        try:
+            with open(output_file, 'a', encoding='utf-8', newline='') as f:
+                f.write('\n</STAGE>\n\n')
+        except Exception as e:
+            dbg(f"Failed to write stage footer: {e}")
+
+    def write_progress(stage_name: str, content: str):
+        """Append stage output to file for non-streaming display."""
+        try:
+            with open(output_file, 'a', encoding='utf-8', newline='') as f:
+                f.write(f'<STAGE name="{stage_name}">\n{content}\n</STAGE>\n\n')
+        except Exception as e:
+            dbg(f"Failed to write progress: {e}")
+
+    def update_status(msg: str):
+        """Update status in output file."""
+        try:
+            with open(output_file, 'a', encoding='utf-8', newline='') as f:
+                f.write(f"[STATUS] {msg}\n")
+        except Exception:
+            pass
+
+    def call_stage(sys_prompt: str, user_prompt: str, stage_name: str) -> str:
+        """Call API for a stage, with optional streaming."""
+        if streaming:
+            write_stage_header(stage_name)
+            result = call_api_streaming(base_url, model, sys_prompt, user_prompt, api_key, output_file, timeout_sec)
+            write_stage_footer()
+            return result
+        else:
+            result = call_api_simple(base_url, model, sys_prompt, user_prompt, api_key, timeout_sec)
+            write_progress(stage_name, result)
+            return result
+
+    try:
+        # Stage 1: Goal Extraction (outputs JSON with task_type)
+        update_status(f"Stage 1/{total_stages}: Extracting goals and intent...")
+        stage1_prompt = STAGE1_PROMPT.format(input=user_input)
+        dbg("Stage 1: Goal Extraction")
+        stage1_raw = call_stage(AGENT_MODE_SYSTEM, stage1_prompt, "Goal Extraction")
+
+        # Parse task_type from Stage 1 JSON for use in Stage 3
+        task_type = "other"
+        try:
+            # Try to find JSON in the response (may be wrapped in markdown code blocks)
+            json_str = stage1_raw
+            if "```json" in json_str:
+                json_str = json_str.split("```json")[1].split("```")[0]
+            elif "```" in json_str:
+                json_str = json_str.split("```")[1].split("```")[0]
+            stage1_json = json.loads(json_str.strip())
+            task_type = stage1_json.get("task_type", "other")
+            dbg(f"Detected task_type: {task_type}")
+        except json.JSONDecodeError as e:
+            dbg(f"Could not parse Stage 1 JSON: {e}")
+            task_type = "other"
+
+        # Stage 2: Redundancy Removal & Clarification
+        update_status(f"Stage 2/{total_stages}: Removing ambiguity and redundancy...")
+        stage2_prompt = STAGE2_PROMPT.format(input=user_input, analysis=stage1_raw)
+        dbg("Stage 2: Clarification")
+        stage2_raw = call_stage(AGENT_MODE_SYSTEM, stage2_prompt, "Clarification")
+
+        # Stage 3: Structure Optimization (uses task_type for scaffolding)
+        update_status(f"Stage 3/{total_stages}: Optimizing structure...")
+        stage3_prompt = STAGE3_PROMPT.format(clarified=stage2_raw, task_type=task_type)
+        dbg("Stage 3: Structure")
+        stage3_raw = call_stage(AGENT_MODE_SYSTEM, stage3_prompt, "Structure")
+
+        # Stage 4: Final Assembly with GPT-5.1 enhancements
+        update_status(f"Stage 4/{total_stages}: Final assembly and polish...")
+        stage4_prompt = STAGE4_PROMPT.format(skeleton=stage3_raw, intent=stage1_raw)
+        dbg("Stage 4: Final Assembly")
+        stage4_raw = call_stage(AGENT_MODE_SYSTEM, stage4_prompt, "Final Assembly")
+
+        final_prompt = stage4_raw
+
+        # Stage 5: Self-Eval (optional)
+        if enable_eval:
+            update_status(f"Stage 5/{total_stages}: Self-evaluation and refinement...")
+            stage5_prompt = STAGE5_PROMPT.format(prompt=stage4_raw, intent=stage1_raw)
+            dbg("Stage 5: Self-Eval")
+            stage5_raw = call_stage(AGENT_MODE_SYSTEM, stage5_prompt, "Self-Eval")
+
+            # Parse eval result
+            eval_passed = True
+            try:
+                eval_json_str = stage5_raw
+                if "```json" in eval_json_str:
+                    eval_json_str = eval_json_str.split("```json")[1].split("```")[0]
+                elif "```" in eval_json_str:
+                    eval_json_str = eval_json_str.split("```")[1].split("```")[0]
+                eval_result = json.loads(eval_json_str.strip())
+                eval_passed = eval_result.get("pass", True)
+                overall_score = eval_result.get("overall_score", 5.0)
+                dbg(f"Eval score: {overall_score}, pass: {eval_passed}")
+
+                # If eval failed, apply fixes
+                if not eval_passed and eval_result.get("suggested_fixes"):
+                    update_status("Stage 5b: Applying evaluation fixes...")
+                    rewrite_prompt = STAGE5_REWRITE_PROMPT.format(
+                        prompt=stage4_raw,
+                        feedback=json.dumps(eval_result, indent=2)
+                    )
+                    dbg("Stage 5b: Rewrite")
+                    final_prompt = call_stage(AGENT_MODE_SYSTEM, rewrite_prompt, "Rewrite")
+            except json.JSONDecodeError as e:
+                dbg(f"Could not parse Stage 5 JSON: {e}")
+                # Keep stage4 output as final
+
+        # Write final result with separator
+        with open(output_file, 'a', encoding='utf-8', newline='') as f:
+            f.write(f"---FINAL---\n{final_prompt}")
+
+        dbg("Agent Mode pipeline complete")
+        return 0
+
+    except Exception as e:
+        dbg(f"Agent Mode error: {e}")
+        try:
+            with open(output_file, 'a', encoding='utf-8', newline='') as f:
+                f.write(f"\n[ERROR] Agent Mode failed: {e}\n")
+        except Exception:
+            pass
+        return 1
+
+
 def try_stream(base_url: str, model: str, sys_prompt: str, user_input: str, api_key: str, timeout_sec: int) -> Generator[str, None, None]:
     lb = base_url.rstrip("/")
     is_openrouter = ("openrouter.ai" in lb) or api_key.startswith("sk-or-")
@@ -253,6 +452,9 @@ def main() -> int:
     p.add_argument("--model", default="openai/gpt-oss-120b")
     p.add_argument("--base-url", default="https://openrouter.ai/api/v1")
     p.add_argument("--stream", action="store_true", help="Enable streaming writes to the output file for live preview")
+    p.add_argument("--agent-mode", action="store_true", help="Enable Agent Mode: 4-stage iterative prompt optimization")
+    p.add_argument("--agent-mode-streaming", action="store_true", help="Enable Agent Mode with streaming: live output per stage")
+    p.add_argument("--agent-mode-eval", action="store_true", help="Enable Agent Mode Stage 5: self-evaluation and refinement")
     args = p.parse_args()
 
     try:
@@ -280,17 +482,28 @@ def main() -> int:
         dbg(f"base_url={base_url}")
         dbg(f"model_req={args.model}")
 
-        # Try requested model, then fallbacks
+        # Allow override of timeout via env (seconds)
+        try:
+            timeout_sec = int(os.environ.get("PROMPTOPT_TIMEOUT", "60"))
+        except Exception:
+            timeout_sec = 60
+
+        # Agent Mode: 4/5-stage iterative optimization
+        if args.agent_mode or args.agent_mode_streaming:
+            streaming = args.agent_mode_streaming
+            enable_eval = args.agent_mode_eval
+            dbg(f"Agent Mode enabled (streaming={streaming}, eval={enable_eval})")
+            if not AGENT_MODE_AVAILABLE:
+                print("Error: Agent mode prompts not available. Ensure agent_mode_prompts.py exists.", file=sys.stderr)
+                return 1
+            return run_agent_mode(user_input, args.model, base_url, api_key, args.output_file, timeout_sec, streaming=streaming, enable_eval=enable_eval)
+
+        # Standard mode: Try requested model, then fallbacks
         is_openrouter = ("openrouter.ai" in base_url.lower()) or (api_key.startswith("sk-or-"))
         if is_openrouter:
             models_to_try = [args.model, "moonshotai/kimi-k2-0905", "z-ai/glm-4.5v", "deepseek/deepseek-chat-v3.1:free", "qwen/qwen3-next-80b-a3b-thinking", "openai/gpt-5-mini"]
         else:
             models_to_try = [args.model, "gpt-4o-mini", "gpt-4o"]
-        # Allow override of timeout via env (seconds)
-        try:
-            timeout_sec = int(os.environ.get("PROMPTOPT_TIMEOUT", "20"))
-        except Exception:
-            timeout_sec = 20
         last_err = None
         for m in models_to_try:
             try:

@@ -14,8 +14,12 @@ global SELECTION_FILE := A_Temp . "\promptopt_sel_" . A_TickCount . ".txt"
 global LOG_FILE := A_Temp . "\promptopt_log_" . A_TickCount . ".log"
 global CUSTOM_PROMPT_FILE := A_Temp . "\promptopt_custom_" . A_TickCount . ".txt"
 
+global g_ContextDir := ""
+global g_ContextQuery := ""
+
 ; Global references for GUI controls to allow hotkey manipulation
 global g_DDLProfile := ""
+global g_DDLFormatter := ""
 global g_EditCustom := ""
 global g_CustomPrompts := []
 global g_CustomPromptIndex := 0
@@ -151,7 +155,19 @@ if (profile = "custom") {
 
 ; Run PromptOpt (PowerShell Bridge)
 isInsano := args.Has("insano") || (EnvGet("PROMPTOPT_INSANO") == "1")
-RunPromptOpt(mode, model, profile, isInsano)
+isPrecise := args.Has("precise") || (EnvGet("PROMPTOPT_PRECISE") == "1")
+isAgentMode := (EnvGet("PROMPTOPT_AGENT_MODE") == "1")
+
+; Override from picker selection if available
+if (IsSet(selected) && selected) {
+    if (selected.HasOwnProp("IsPrecise")) {
+        isPrecise := selected.IsPrecise
+    }
+    if (selected.HasOwnProp("IsAgentMode")) {
+        isAgentMode := selected.IsAgentMode
+    }
+}
+RunPromptOpt(mode, model, profile, isInsano, isPrecise, isAgentMode, g_ContextDir, g_ContextQuery)
 
 
 ; ====================================================================
@@ -285,11 +301,7 @@ GetSelectionText() {
 }
 
 GetAvailableProfiles() {
-    profiles := []
-    formatterProfiles := LoadFormatterTemplates()
-    for fmt in formatterProfiles {
-        profiles.Push(fmt.Name)
-    }
+    profiles := ["(None)"]  ; Allow blank/no meta-prompt
 
     metaFound := false
     if (DirExist(META_PROMPT_DIR)) {
@@ -304,24 +316,26 @@ GetAvailableProfiles() {
         }
     }
     if (!metaFound) {
-        profiles := ["Browser", "Coding", "Writing", "RAG", "General"]
+        profiles := ["(None)", "Browser", "Coding", "Writing", "RAG", "General"]
     }
-    hasCustom := false
-    for p in profiles {
-        if (p = "Custom")
-            hasCustom := true
-    }
-    if (!hasCustom)
-        profiles.Push("Custom")
+    profiles.Push("Custom")
     return profiles
+}
+
+GetAvailableFormatters() {
+    formatters := ["(None)"]  ; Allow blank/no formatter
+    formatterTemplates := LoadFormatterTemplates()
+    for fmt in formatterTemplates {
+        ; Strip "Formatter: " prefix if present for cleaner display
+        name := RegExReplace(fmt.Name, "^Formatter:\s*", "")
+        formatters.Push(name)
+    }
+    formatters.Push("Custom")
+    return formatters
 }
 
 LoadMetaPromptContents() {
     prompts := []
-    formatterProfiles := LoadFormatterTemplates()
-    for fmt in formatterProfiles {
-        prompts.Push({Name: fmt.Name, Text: fmt.Text})
-    }
 
     if (DirExist(META_PROMPT_DIR)) {
         ; We look for specific meta prompt files to offer as templates
@@ -337,14 +351,34 @@ LoadMetaPromptContents() {
                     name := StrReplace(name, ".md", "")
                     name := StrReplace(name, "_", " ")
                     name := StrTitle(name)
-                    
-                    prompts.Push({Name: name, Text: Trim(match[1])})
+
+                    prompts.Push({Name: StrLower(name), Text: Trim(match[1])})
+                } else {
+                    ; No META_PROMPT anchor, use file content directly
+                    name := A_LoopFileName
+                    name := StrReplace(name, "Meta_Prompt.", "")
+                    name := StrReplace(name, ".md", "")
+                    name := StrReplace(name, "_", " ")
+                    name := StrTitle(name)
+
+                    prompts.Push({Name: StrLower(name), Text: Trim(content)})
                 }
             }
         }
     }
-    
+
     return prompts
+}
+
+LoadFormatterContents() {
+    formatters := []
+    formatterTemplates := LoadFormatterTemplates()
+    for fmt in formatterTemplates {
+        ; Strip "Formatter: " prefix for map key
+        name := RegExReplace(fmt.Name, "^Formatter:\s*", "")
+        formatters.Push({Name: StrLower(name), Text: fmt.Text})
+    }
+    return formatters
 }
 
 LoadFormatterTemplates() {
@@ -378,55 +412,432 @@ LoadFormatterTemplates() {
     return formatterPrompts
 }
 
+GetPromptingTechniques() {
+    techniques := []
+
+    techniques.Push({
+        Key: "persistence",
+        Label: "Persistence & completeness",
+        Text: "<solution_persistence>`n- Treat yourself as an autonomous senior pair-programmer; gather context, plan, implement, test, and refine without bouncing back prematurely.`n- Persist until the task is fully handled end-to-end; avoid stopping at analysis or partial fixes.`n- Bias for action on ambiguous directives; if the right answer is ""yes,"" also do the work.`n</solution_persistence>"
+    })
+
+    techniques.Push({
+        Key: "user_updates",
+        Label: "User updates & preambles",
+        Text: "<user_updates_spec>`n- Send 1-2 sentence updates every few tool calls and at least every 6 steps/8 calls when work continues.`n- Start with a quick plan before the first tool call; note discoveries and at least one concrete outcome per update.`n- For long heads-down stretches, state why/when you'll report back; then synthesize when you return.`n- Recaps end with a checklist of items marked Done or Closed (no pending items).`n</user_updates_spec>`n<user_update_immediacy>Always explain what you're doing in a commentary message first, before sampling analysis.</user_update_immediacy>"
+    })
+
+    techniques.Push({
+        Key: "verbosity",
+        Label: "Verbosity clamp",
+        Text: "<final_answer_formatting>`n- Tiny change: 2-5 sentences or <=3 bullets; <=1 short snippet (<=3 lines) only if essential.`n- Medium change: <=6 bullets or 6-10 sentences; max 1-2 short snippets (<=8 lines).`n- Large change: summarize per file with 1-2 bullets; avoid big code; <=2 short snippets total.`n- No before/after pairs or build/log chatter unless blocking; prefer references over code fences.`n</final_answer_formatting>`n<output_verbosity_spec>`n- Respond in plain text styled in Markdown with at most 2 concise sentences when possible; lead with what you did/found; show code only when necessary.`n</output_verbosity_spec>"
+    })
+
+    techniques.Push({
+        Key: "reasoning_none",
+        Label: "Reasoning none + tool discipline",
+        Text: "<reasoning_mode_none>`n- For fast runs, prefer reasoning_effort=""none""; plan briefly before tool calls and verify arguments/paths.`n- Parallelize safe tool calls (reads/edits/search) to speed up; batch where possible.`n- Verify tool outputs against constraints (ids/prices/targets) before acting; quote critical ids back.`n- Keep going until the query is resolved; avoid premature finishes with partial steps.`n</reasoning_mode_none>"
+    })
+
+    techniques.Push({
+        Key: "plan_tool",
+        Label: "Plan tool discipline",
+        Text: "<plan_tool_usage>`n- For medium/large tasks create a 2-5 item plan; one item in_progress at a time; update statuses frequently and finish with all items completed or explicitly closed/deferred.`n- Avoid micro-steps like ""open file"" or ""run tests""; keep items outcome-focused.`n</plan_tool_usage>"
+    })
+
+    techniques.Push({
+        Key: "advanced_scaffolds",
+        Label: "Advanced prompting kit",
+        Text: "<advanced_prompting>`n- Constraint-based prompting: declare must-include, must-avoid, format, and length as non-negotiable guardrails.`n- Multi-shot with failure cases: show a good example, a bad example, and why the bad one fails before asking for the real output.`n- Metacognitive scaffolding: list 3 assumptions, edge cases, and a 2-sentence approach before the final output.`n- Differential prompting: produce two versions optimized for different goals and explain tradeoffs.`n- Specification-driven generation: write a spec (inputs/outputs/constraints/edge cases) and seek approval before implementation when appropriate.`n- Chain-of-verification: after generating, check against explicit criteria and regenerate if any fail.`n</advanced_prompting>"
+    })
+
+    return techniques
+}
+
 ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
-    global g_DDLProfile
-    selection := {Profile: defaultProfile, Model: defaultModel, CustomText: "", UserText: ""}
-    
-    guiPicker := Gui(, "PromptOpt Configuration")
-    guiPicker.SetFont("s10", "Segoe UI")
-    
-    guiPicker.Add("Text",, "Select Profile (Ctrl+Shift+Wheel to cycle):")
-    
+    global g_DDLProfile, g_DDLFormatter
+    selection := {Profile: defaultProfile, Model: defaultModel, CustomText: "", UserText: "", ContextDir: "", ContextQuery: ""}
+
+    ; ====================================================================
+    ; ENHANCED UI - PromptOpt Dashboard
+    ; ====================================================================
+
+    guiPicker := Gui("+Resize", "PromptOpt")
+    guiPicker.BackColor := "1a1a2e"
+    guiPicker.SetFont("s10 cFFFFFF", "Segoe UI")
+
+    ; -- Header with title and status --
+    guiPicker.SetFont("s14 c00FFFF w700", "Segoe UI")
+    guiPicker.Add("Text", "x20 y10 w700 Center", "PromptOpt Dashboard")
+    guiPicker.SetFont("s8 c808080", "Segoe UI")
+    guiPicker.Add("Text", "x20 y35 w700 Center vStatusText", "Select a meta-prompt and/or formatter, then customize below")
+
+    ; ====================================================================
+    ; LEFT PANEL - Meta-Prompt Selection
+    ; ====================================================================
+    guiPicker.SetFont("s10 cFFFFFF w700", "Segoe UI")
+    guiPicker.Add("Text", "x20 y65 Section", "Meta-Prompt")
+    guiPicker.SetFont("s8 c888888", "Segoe UI")
+    guiPicker.Add("Text", "x20 y82", "Optimization strategy for your prompt")
+
+    guiPicker.SetFont("s10 cFFFFFF", "Segoe UI")
     profileList := GetAvailableProfiles()
-    g_DDLProfile := guiPicker.Add("ListBox", "w320 r14 Choose1 vDDLProfile", profileList)
+    g_DDLProfile := guiPicker.Add("ListBox", "x20 y100 w220 r12 vDDLProfile Background2d2d44", profileList)
     g_DDLProfile.ItemsArray := profileList
-    
-    ; -- Split View: System Prompt (Instructions) vs User Input (Content) --
-    
-    ; 1. System Prompt
-    guiPicker.Add("Text",, "System Prompt / Instructions:")
-    editSystem := guiPicker.Add("Edit", "w600 h200 vSystemPrompt -Wrap")
-    
-    ; 2. User Input
-    guiPicker.Add("Text",, "User Input / Selection:")
-    editUser := guiPicker.Add("Edit", "w600 h150 vUserInput -Wrap")
-    editUser.Value := inputText ; Initialize with captured text
-    
-    ; Load prompts for preview
-    prompts := LoadMetaPromptContents()
-    promptMap := Map()
-    for p in prompts {
-        promptMap[StrLower(p.Name)] := p.Text
+
+    ; Quick filter for meta-prompts
+    guiPicker.SetFont("s8 c808080", "Segoe UI")
+    guiPicker.Add("Text", "x20 y+5", "Type to filter...")
+    guiPicker.SetFont("s9 cFFFFFF", "Segoe UI")
+    editMetaFilter := guiPicker.Add("Edit", "x20 y+2 w220 h24 Background2d2d44 vMetaFilter")
+
+    ; ====================================================================
+    ; MIDDLE PANEL - Formatter Selection (Categorized)
+    ; ====================================================================
+    guiPicker.SetFont("s10 cFFFFFF w700", "Segoe UI")
+    guiPicker.Add("Text", "x260 y65", "Formatter")
+    guiPicker.SetFont("s8 c888888", "Segoe UI")
+    guiPicker.Add("Text", "x260 y82", "Output structure and format")
+
+    guiPicker.SetFont("s10 cFFFFFF", "Segoe UI")
+    formatterList := GetAvailableFormatters()
+    g_DDLFormatter := guiPicker.Add("ListBox", "x260 y100 w220 r12 vDDLFormatter Background2d2d44", formatterList)
+    g_DDLFormatter.ItemsArray := formatterList
+
+    ; Quick filter for formatters
+    guiPicker.SetFont("s8 c808080", "Segoe UI")
+    guiPicker.Add("Text", "x260 y+5", "Type to filter...")
+    guiPicker.SetFont("s9 cFFFFFF", "Segoe UI")
+    editFmtFilter := guiPicker.Add("Edit", "x260 y+2 w220 h24 Background2d2d44 vFmtFilter")
+
+    ; ====================================================================
+    ; RIGHT PANEL - Quick Actions & Options
+    ; ====================================================================
+    guiPicker.SetFont("s10 cFFFFFF w700", "Segoe UI")
+    guiPicker.Add("Text", "x500 y65", "Options")
+
+    ; Model Selection
+    guiPicker.SetFont("s9 cFFFFFF", "Segoe UI")
+    guiPicker.Add("Text", "x500 y90", "Model:")
+    ddlModel := guiPicker.Add("ComboBox", "x500 y108 w220 Background2d2d44", [
+        "openai/gpt-4o",
+        "openai/gpt-4o-mini",
+        "anthropic/claude-sonnet-4-20250514",
+        "anthropic/claude-3.5-sonnet",
+        "google/gemini-2.0-flash-001",
+        "openai/gpt-oss-120b"
+    ])
+    try ddlModel.Text := defaultModel
+
+    ; ====================================================================
+    ; OUTPUT STEERING CONTROLS
+    ; ====================================================================
+
+    ; Audience Level
+    guiPicker.SetFont("s8 c888888", "Segoe UI")
+    guiPicker.Add("Text", "x500 y135", "Audience:")
+    guiPicker.SetFont("s9 cFFFFFF", "Segoe UI")
+    ddlAudience := guiPicker.Add("DropDownList", "x560 y132 w160 Background2d2d44 vAudience Choose1", [
+        "(Auto)",
+        "Technical",
+        "Non-Technical",
+        "Executive",
+        "Developer",
+        "End User"
+    ])
+
+    ; Length Control
+    guiPicker.SetFont("s8 c888888", "Segoe UI")
+    guiPicker.Add("Text", "x500 y162", "Length:")
+    guiPicker.SetFont("s9 cFFFFFF", "Segoe UI")
+    ddlLength := guiPicker.Add("DropDownList", "x560 y159 w160 Background2d2d44 vLength Choose1", [
+        "(Auto)",
+        "Ultra Concise",
+        "Concise",
+        "Normal",
+        "Detailed",
+        "Comprehensive"
+    ])
+
+    ; Tone
+    guiPicker.SetFont("s8 c888888", "Segoe UI")
+    guiPicker.Add("Text", "x500 y189", "Tone:")
+    guiPicker.SetFont("s9 cFFFFFF", "Segoe UI")
+    ddlTone := guiPicker.Add("DropDownList", "x560 y186 w160 Background2d2d44 vTone Choose1", [
+        "(Auto)",
+        "Formal",
+        "Professional",
+        "Neutral",
+        "Friendly",
+        "Casual",
+        "Direct"
+    ])
+
+    ; Mode Toggles
+    guiPicker.SetFont("s9 cFFFFFF", "Segoe UI")
+    global PK_INSANO_MODE
+    isInsanoDefault := (EnvGet("PROMPTOPT_INSANO") == "1") || (IsSet(PK_INSANO_MODE) && PK_INSANO_MODE)
+    chkInsano := guiPicker.Add("Checkbox", "x500 y218 Checked" . isInsanoDefault, "Insano Mode")
+
+    isPreciseDefault := (EnvGet("PROMPTOPT_PRECISE") == "1")
+    chkPrecise := guiPicker.Add("Checkbox", "x620 y218 Checked" . isPreciseDefault, "Precise Edit")
+
+    isAgentDefault := (EnvGet("PROMPTOPT_AGENT_MODE") == "1")
+    chkAgentMode := guiPicker.Add("Checkbox", "x500 y241 Checked" . isAgentDefault, "Agent Mode (4-stage GPT-5.1)")
+
+    ; Prompting Techniques (optional add-ons)
+    techniques := GetPromptingTechniques()
+    techCheckboxes := Map()
+
+    guiPicker.SetFont("s10 cFFFFFF w700", "Segoe UI")
+    guiPicker.Add("Text", "x500 y270", "Prompting Techniques")
+    guiPicker.SetFont("s8 c888888", "Segoe UI")
+    guiPicker.Add("Text", "x500 y287 w220", "Optional GPT-5.1 patterns to append")
+    guiPicker.SetFont("s9 cFFFFFF", "Segoe UI")
+
+    techY := 305
+    for tech in techniques {
+        cb := guiPicker.Add("Checkbox", "x500 y" . techY . " w220", tech.Label)
+        techCheckboxes[tech.Key] := cb
+        cb.OnEvent("Click", UpdatePreview)
+        techY += 22
     }
-    
+
+    ; Character/token count display
+    guiPicker.SetFont("s8 c888888", "Segoe UI")
+    txtCharCount := guiPicker.Add("Text", "x500 y" . (techY + 10) . " w220 vCharCount", "System: 0 chars | User: 0 chars")
+
+    ; Keyboard shortcuts hint
+    guiPicker.SetFont("s8 c666666", "Segoe UI")
+    guiPicker.Add("Text", "x500 y" . (techY + 28), "Enter=Run | Ctrl+Shift+Wheel=Cycle")
+
+    ; ====================================================================
+    ; BOTTOM SECTION - Editable Prompts
+    ; ====================================================================
+    guiPicker.SetFont("s10 cFFFFFF w700", "Segoe UI")
+    guiPicker.Add("Text", "x20 y295", "System Prompt")
+    guiPicker.SetFont("s8 c00FF88", "Segoe UI")
+    guiPicker.Add("Text", "x140 y297", "(editable)")
+
+    guiPicker.SetFont("s9 cFFFFFF", "Consolas")
+    editSystem := guiPicker.Add("Edit", "x20 y315 w460 h140 vSystemPrompt Background1e1e2e -Wrap")
+
+    guiPicker.SetFont("s10 cFFFFFF w700", "Segoe UI")
+    guiPicker.Add("Text", "x20 y465", "User Input")
+    guiPicker.SetFont("s8 cFFAA00", "Segoe UI")
+    guiPicker.Add("Text", "x100 y467", "(your selected text)")
+
+    guiPicker.SetFont("s9 cWhite", "Consolas")
+    editUser := guiPicker.Add("Edit", "x20 y485 w460 h100 vUserInput Background1e1e2e cWhite -Wrap")
+    editUser.Value := inputText
+
+    ; ====================================================================
+    ; ACTION BUTTONS
+    ; ====================================================================
+    guiPicker.SetFont("s11 cWhite Bold", "Segoe UI")
+    btnRun := guiPicker.Add("Button", "x20 y600 w120 h35 Default", "Run")
+    btnRun.Opt("+Background00aa55")
+
+    guiPicker.SetFont("s10 cWhite", "Segoe UI")
+    btnContext := guiPicker.Add("Button", "x150 y600 w120 h35", "Add Context")
+
+    guiPicker.SetFont("s10 cWhite", "Segoe UI")
+    btnCopy := guiPicker.Add("Button", "x280 y600 w100 h35", "Copy All")
+    btnClear := guiPicker.Add("Button", "x390 y600 w100 h35", "Clear")
+    btnSwap := guiPicker.Add("Button", "x500 y600 w100 h35", "Swap")
+
+    ; ====================================================================
+    ; DATA & EVENT HANDLERS
+    ; ====================================================================
+
+    ; Load prompts and formatters for preview
+    metaPrompts := LoadMetaPromptContents()
+    metaMap := Map()
+    for p in metaPrompts {
+        metaMap[p.Name] := p.Text
+    }
+
+    formatters := LoadFormatterContents()
+    formatterMap := Map()
+    for f in formatters {
+        formatterMap[f.Name] := f.Text
+    }
+
+    ; Store original lists for filtering
+    originalMetaList := profileList.Clone()
+    originalFmtList := formatterList.Clone()
+
     UpdatePreview(*) {
-        selected := StrLower(GetSelectedControlText(g_DDLProfile))
-        text := ""
-        
-        if (promptMap.Has(selected)) {
-            text := promptMap[selected]
-        } else if (selected != "custom") {
-            ; If not custom (and not in map), clear it. 
-            text := "" 
+        selectedMeta := StrLower(GetSelectedControlText(g_DDLProfile))
+        selectedFormatter := StrLower(GetSelectedControlText(g_DDLFormatter))
+
+        metaText := ""
+        formatterText := ""
+
+        ; Get meta-prompt text (if not "(none)" or "custom")
+        if (selectedMeta != "(none)" && selectedMeta != "custom") {
+            if (metaMap.Has(selectedMeta)) {
+                metaText := metaMap[selectedMeta]
+            }
         }
-        
-        ; Update only the System Prompt box
-        editSystem.Value := text
+
+        ; Get formatter text (if not "(none)" or "custom")
+        if (selectedFormatter != "(none)" && selectedFormatter != "custom") {
+            if (formatterMap.Has(selectedFormatter)) {
+                formatterText := formatterMap[selectedFormatter]
+            }
+        }
+
+        ; Build steering instructions from dropdowns
+        steeringParts := []
+
+        audience := ddlAudience.Text
+        if (audience != "(Auto)") {
+            steeringParts.Push("**Audience:** " . audience . " - tailor language, depth, and examples appropriately.")
+        }
+
+        length := ddlLength.Text
+        if (length != "(Auto)") {
+            lengthGuide := ""
+            switch length {
+                case "Ultra Concise": lengthGuide := "Absolute minimum words. Strip everything non-essential. Target <100 words."
+                case "Concise": lengthGuide := "Brief and focused. No fluff. Target 100-300 words."
+                case "Normal": lengthGuide := "Balanced coverage. Include key details. Target 300-600 words."
+                case "Detailed": lengthGuide := "Thorough explanation with examples. Target 600-1200 words."
+                case "Comprehensive": lengthGuide := "Complete coverage. Include context, examples, edge cases. No word limit."
+            }
+            steeringParts.Push("**Length:** " . length . " - " . lengthGuide)
+        }
+
+        tone := ddlTone.Text
+        if (tone != "(Auto)") {
+            toneGuide := ""
+            switch tone {
+                case "Formal": toneGuide := "Professional, structured, third-person where appropriate."
+                case "Professional": toneGuide := "Clear and businesslike, but approachable."
+                case "Neutral": toneGuide := "Balanced, objective, no strong voice."
+                case "Friendly": toneGuide := "Warm and helpful, use 'you' and conversational language."
+                case "Casual": toneGuide := "Relaxed, conversational, contractions OK."
+                case "Direct": toneGuide := "Straight to the point. No hedging or qualifiers."
+            }
+            steeringParts.Push("**Tone:** " . tone . " - " . toneGuide)
+        }
+
+        steeringText := ""
+        if (steeringParts.Length > 0) {
+            steeringText := "`n`n---`n`n**Output Guidelines:**`n" . ArrayJoin(steeringParts, "`n")
+        }
+
+        ; Combine: meta-prompt first, then formatter, then steering
+        combined := ""
+        if (metaText != "") {
+            combined := metaText
+        }
+        if (formatterText != "") {
+            if (combined != "") {
+                combined .= "`n`n---`n`n**Output Format:**`n" . formatterText
+            } else {
+                combined := formatterText
+            }
+        }
+        if (steeringText != "") {
+            combined .= steeringText
+        }
+
+        ; Optional GPT-5.1 prompting techniques
+        techParts := []
+        for tech in techniques {
+            if (!techCheckboxes.Has(tech.Key))
+                continue
+            try {
+                if (techCheckboxes[tech.Key].Value) {
+                    techParts.Push("**" . tech.Label . ":**`n" . tech.Text)
+                }
+            }
+        }
+
+        if (techParts.Length > 0) {
+            techBlock := ArrayJoin(techParts, "`n`n")
+            if (combined != "") {
+                combined .= "`n`n---`n`n**Prompting Techniques:**`n" . techBlock
+            } else {
+                combined := "**Prompting Techniques:**`n" . techBlock
+            }
+        }
+
+        ; Update the System Prompt box
+        editSystem.Value := combined
+
+        ; Update character count
+        UpdateCharCount()
     }
-    
+
+    ArrayJoin(arr, sep) {
+        result := ""
+        for i, item in arr {
+            if (i > 1)
+                result .= sep
+            result .= item
+        }
+        return result
+    }
+
+    UpdateCharCount(*) {
+        sysLen := StrLen(editSystem.Value)
+        userLen := StrLen(editUser.Value)
+        ; Rough token estimate (4 chars per token average)
+        sysTok := Round(sysLen / 4)
+        userTok := Round(userLen / 4)
+        txtCharCount.Value := "System: " . sysLen . " chars (~" . sysTok . " tok) | User: " . userLen . " chars (~" . userTok . " tok)"
+    }
+
+    FilterList(edit, listbox, originalList, *) {
+        filterText := StrLower(edit.Value)
+        if (filterText = "") {
+            ; Restore original list
+            listbox.Delete()
+            listbox.Add(originalList)
+            listbox.Choose(1)
+        } else {
+            ; Filter and update
+            filtered := []
+            for item in originalList {
+                if (InStr(StrLower(item), filterText)) {
+                    filtered.Push(item)
+                }
+            }
+            listbox.Delete()
+            if (filtered.Length > 0) {
+                listbox.Add(filtered)
+                listbox.Choose(1)
+            }
+        }
+        UpdatePreview()
+    }
+
+    ; Event bindings
     g_DDLProfile.OnEvent("Change", UpdatePreview)
-    g_DDLProfile.UpdatePreviewFn := UpdatePreview 
-    
+    g_DDLFormatter.OnEvent("Change", UpdatePreview)
+    g_DDLProfile.UpdatePreviewFn := UpdatePreview
+
+    ; Steering dropdown events
+    ddlAudience.OnEvent("Change", UpdatePreview)
+    ddlLength.OnEvent("Change", UpdatePreview)
+    ddlTone.OnEvent("Change", UpdatePreview)
+
+    editMetaFilter.OnEvent("Change", FilterList.Bind(editMetaFilter, g_DDLProfile, originalMetaList))
+    editFmtFilter.OnEvent("Change", FilterList.Bind(editFmtFilter, g_DDLFormatter, originalFmtList))
+
+    editSystem.OnEvent("Change", UpdateCharCount)
+    editUser.OnEvent("Change", UpdateCharCount)
+
+    btnRun.OnEvent("Click", (*) => SubmitPicker())
+    btnContext.OnEvent("Click", (*) => ConfigureContext())
+    btnCopy.OnEvent("Click", (*) => CopyPreview())
+    btnClear.OnEvent("Click", (*) => ClearAll())
+    btnSwap.OnEvent("Click", (*) => SwapPrompts())
+
+    ; Set default selections
     try {
         defaultChosen := false
         for idx, name in profileList {
@@ -439,47 +850,71 @@ ShowProfilePicker(defaultProfile, defaultModel, inputText := "") {
         if (!defaultChosen)
             g_DDLProfile.Choose(1)
     }
-    
+
+    ; Default formatter to "(None)"
+    g_DDLFormatter.Choose(1)
+
     ; Initial update
     UpdatePreview()
-    
-    guiPicker.Add("Text",, "Select Model:")
-    ddlModel := guiPicker.Add("ComboBox", "w400", ["openai/gpt-4o", "openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet", "openai/gpt-oss-120b"])
-    try ddlModel.Text := defaultModel
-    
-    btnRun := guiPicker.Add("Button", "Default w100", "Run")
-    btnRun.OnEvent("Click", (*) => SubmitPicker())
-    
-    btnCopy := guiPicker.Add("Button", "x+10 w100", "Copy")
-    btnCopy.OnEvent("Click", (*) => CopyPreview())
 
-    ; Insano Mode Toggle
-    global PK_INSANO_MODE
-    isInsanoDefault := (EnvGet("PROMPTOPT_INSANO") == "1") || (IsSet(PK_INSANO_MODE) && PK_INSANO_MODE)
-    chkInsano := guiPicker.Add("Checkbox", "x+20 Checked" . isInsanoDefault, "🔥 Insano Mode")
-    
     isSubmitted := false
-    
+
     SubmitPicker() {
         selection.Profile := StrLower(GetSelectedControlText(g_DDLProfile))
+        selection.Formatter := StrLower(GetSelectedControlText(g_DDLFormatter))
         selection.Model := ddlModel.Text
         selection.CustomText := editSystem.Value
         selection.UserText := editUser.Value
         selection.IsInsano := chkInsano.Value
+        selection.IsPrecise := chkPrecise.Value
+        selection.IsAgentMode := chkAgentMode.Value
         isSubmitted := true
         guiPicker.Destroy()
     }
-    
+
     CopyPreview() {
-        ; Copy composite for debugging/testing
         A_Clipboard := "--- SYSTEM ---`n" . editSystem.Value . "`n`n--- USER ---`n" . editUser.Value
-        ToolTip("Copied System+User!")
-        SetTimer(() => ToolTip(), -1000)
+        ToolTip("Copied to clipboard!")
+        SetTimer(() => ToolTip(), -1500)
     }
-    
-    guiPicker.Show()
+
+    ClearAll() {
+        editSystem.Value := ""
+        editUser.Value := ""
+        g_DDLProfile.Choose(1)
+        g_DDLFormatter.Choose(1)
+        ddlAudience.Choose(1)
+        ddlLength.Choose(1)
+        ddlTone.Choose(1)
+        for key, cb in techCheckboxes {
+            try cb.Value := 0
+        }
+        editMetaFilter.Value := ""
+        editFmtFilter.Value := ""
+        ; Restore lists
+        g_DDLProfile.Delete()
+        g_DDLProfile.Add(originalMetaList)
+        g_DDLProfile.Choose(1)
+        g_DDLFormatter.Delete()
+        g_DDLFormatter.Add(originalFmtList)
+        g_DDLFormatter.Choose(1)
+        UpdateCharCount()
+    }
+
+    SwapPrompts() {
+        temp := editSystem.Value
+        editSystem.Value := editUser.Value
+        editUser.Value := temp
+        UpdateCharCount()
+    }
+
+    guiPicker.OnEvent("Close", (*) => guiPicker.Destroy())
+    guiPicker.OnEvent("Escape", (*) => guiPicker.Destroy())
+
+    guiPicker.Show("w740 h650")
     WinWaitClose(guiPicker)
     g_DDLProfile := ""
+    g_DDLFormatter := ""
     return isSubmitted ? selection : false
 }
 
@@ -521,11 +956,68 @@ ShowCustomPromptInput(currentInput := "") {
     return isSubmitted ? result : false
 }
 
-RunPromptOpt(mode, model, profile, isInsano := false) {
+ConfigureContext() {
+    ctx := ShowContextDialog(g_ContextDir, g_ContextQuery)
+    if (!ctx) {
+        return
+    }
+    g_ContextDir := ctx.Dir
+    g_ContextQuery := ctx.Query
+}
+
+ShowContextDialog(defaultDir := "", defaultQuery := "") {
+    guiCtx := Gui("+OwnDialogs", "Context Scout")
+    guiCtx.SetFont("s10", "Segoe UI")
+
+    guiCtx.Add("Text",, "Context folder:")
+    edtDir := guiCtx.Add("Edit", "w520 vCtxDir")
+    edtDir.Value := defaultDir
+    btnBrowse := guiCtx.Add("Button", "x+10 w80", "Browse")
+
+    guiCtx.Add("Text", "y+10", "What should I search for in that folder?")
+    edtQuery := guiCtx.Add("Edit", "w610 h80 vCtxQuery")
+    edtQuery.Value := defaultQuery
+
+    btnOk := guiCtx.Add("Button", "Default w100", "OK")
+    btnCancel := guiCtx.Add("Button", "x+10 w100", "Cancel")
+
+    result := {Dir: "", Query: ""}
+    isSubmitted := false
+
+    btnBrowse.OnEvent("Click", (*) => Browse())
+    btnOk.OnEvent("Click", (*) => Submit())
+    btnCancel.OnEvent("Click", (*) => guiCtx.Destroy())
+
+    Browse() {
+        picked := DirSelect(defaultDir ? "*" . defaultDir : "", 3, "Select context folder")
+        if (picked != "") {
+            edtDir.Value := RegExReplace(picked, "\\\\$", "")
+        }
+    }
+
+    Submit() {
+        d := Trim(edtDir.Value)
+        q := Trim(edtQuery.Value)
+        if (d = "" || q = "") {
+            MsgBox("Please provide both a folder and a query.")
+            return
+        }
+        result.Dir := d
+        result.Query := q
+        isSubmitted := true
+        guiCtx.Destroy()
+    }
+
+    guiCtx.Show()
+    WinWaitClose(guiCtx)
+    return isSubmitted ? result : false
+}
+
+RunPromptOpt(mode, model, profile, isInsano := false, isPrecise := false, isAgentMode := false, contextDir := "", contextQuery := "") {
     ; Check for Insano Mode
     ; isInsano passed from args/env
     contextFile := ""
-    
+
     if (isInsano) {
         contextFile := GetActiveFilePath()
         if (contextFile) {
@@ -544,34 +1036,54 @@ RunPromptOpt(mode, model, profile, isInsano := false) {
     cmd .= ' -Model "' . model . '"'
     cmd .= ' -Profile "' . profile . '"'
     cmd .= ' -LogFile "' . LOG_FILE . '"'
-    
+
     if (contextFile) {
         cmd .= ' -ContextFilePath "' . contextFile . '"'
     }
-    
+
+    if (contextDir != "" && contextQuery != "") {
+        cmd .= ' -ContextDir "' . contextDir . '"'
+        cmd .= ' -ContextQuery "' . contextQuery . '"'
+    }
+
     if (profile = "custom") {
         cmd .= ' -CustomPromptFile "' . CUSTOM_PROMPT_FILE . '"'
     }
+
+    if (isPrecise) {
+        cmd .= ' -PreciseEdit'
+    }
+
+    if (isAgentMode) {
+        cmd .= ' -AgentMode'
+    }
     
     ; Setup Result GUI
-    guiResult := Gui("+Resize", "PromptOpt Result")
+    guiTitle := isAgentMode ? "PromptOpt - Agent Mode (4-Stage Pipeline)" : "PromptOpt Result"
+    guiResult := Gui("+Resize", guiTitle)
     guiResult.SetFont("s10", "Consolas")
-    
+
     ; -WantReturn ensures Enter triggers the Default button (OK)
     ; User can use Ctrl+Enter for new lines if needed
     editResult := guiResult.Add("Edit", "w800 h600 Multi -WantReturn vOutput")
-    editResult.Value := "Initializing..." ; Loading indicator
+    editResult.Value := isAgentMode ? "Agent Mode: Starting 4-stage optimization..." : "Initializing..."
     
     ; Buttons
     btnOK := guiResult.Add("Button", "Default w100", "OK")
-    btnCopy := guiResult.Add("Button", "x+10 w100", "Copy")
-    
+    btnCopy := guiResult.Add("Button", "x+10 w100", "Copy All")
+
+    ; Agent Mode: Add "Copy Final Only" button
+    if (isAgentMode) {
+        btnCopyFinal := guiResult.Add("Button", "x+10 w120", "Copy Final Only")
+        btnCopyFinal.OnEvent("Click", (*) => CopyFinalOnly(editResult.Value))
+    }
+
     ; Relace Quick Apply Button
     if (InStr(profile, "relace")) {
         btnApply := guiResult.Add("Button", "x+10 w120", "⚡ Quick Apply")
         btnApply.OnEvent("Click", (*) => RunRelaceApply(editResult.Value))
     }
-    
+
     ; Event Handlers
     btnOK.OnEvent("Click", (*) => SaveAndClose())
     btnCopy.OnEvent("Click", (*) => CopyResult(editResult.Value))
@@ -648,7 +1160,7 @@ RunPromptOpt(mode, model, profile, isInsano := false) {
                     SetTimer(CheckOutput, 0)
                     try {
                         finalContent := FileRead(OUTPUT_FILE, "UTF-8")
-                        if (finalContent != "") {
+                        if (finalContent != "" && finalContent != "Initializing...") {
                             editResult.Value := finalContent
                         }
                     }
@@ -692,22 +1204,57 @@ RunPromptOpt(mode, model, profile, isInsano := false) {
     }
     
     SaveAndClose() {
-        A_Clipboard := editResult.Value
-        ToolTip("Saved to Clipboard")
+        ; For Agent Mode, save only the final prompt to clipboard
+        if (isAgentMode) {
+            finalText := ExtractFinalPrompt(editResult.Value)
+            if (finalText != "") {
+                A_Clipboard := finalText
+                ToolTip("Final prompt saved to Clipboard")
+            } else {
+                A_Clipboard := editResult.Value
+                ToolTip("Saved to Clipboard (full output)")
+            }
+        } else {
+            A_Clipboard := editResult.Value
+            ToolTip("Saved to Clipboard")
+        }
         SetTimer(() => ToolTip(), -1000)
         Sleep(500)
         ExitScript()
     }
-    
+
     ExitScript() {
         guiResult.Destroy()
         ExitApp()
     }
-    
+
     CopyResult(text) {
         A_Clipboard := text
         ToolTip("Copied!")
         SetTimer(() => ToolTip(), -1000)
+    }
+
+    CopyFinalOnly(text) {
+        finalText := ExtractFinalPrompt(text)
+        if (finalText != "") {
+            A_Clipboard := finalText
+            ToolTip("Final prompt copied!")
+        } else {
+            A_Clipboard := text
+            ToolTip("No final marker found - copied all")
+        }
+        SetTimer(() => ToolTip(), -1000)
+    }
+
+    ExtractFinalPrompt(text) {
+        ; Extract content after ---FINAL--- marker
+        if (InStr(text, "---FINAL---")) {
+            parts := StrSplit(text, "---FINAL---", "", 2)
+            if (parts.Length >= 2) {
+                return Trim(parts[2])
+            }
+        }
+        return ""
     }
     
     RunRelaceApply(jsonContent, silent := false) {

@@ -10,7 +10,11 @@ param(
   [string]$LogFile,
   [string]$CustomPromptFile,
   [string]$ContextFilePath,
-  [switch]$CopyToClipboard = $false
+  [string]$ContextDir,
+  [string]$ContextQuery,
+  [switch]$CopyToClipboard = $false,
+  [switch]$PreciseEdit = $false,
+  [switch]$AgentMode = $false
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,6 +31,17 @@ function Write-Log([string]$msg) {
 }
 Write-Log "--- PromptOpt start (Mode=$Mode, Model=$Model) ---"
 Write-Log "Args: SelectionFile='$SelectionFile' OutputFile='$OutputFile' MetaPromptDir='$MetaPromptDir' BaseUrl='$BaseUrl'"
+
+function Get-Python() {
+  $candidates = @('py','python','python3')
+  foreach ($c in $candidates) {
+    try {
+      $ver = & $c -c "import sys; print(sys.version_info[0])" 2>$null
+      if ($LASTEXITCODE -eq 0 -and $ver) { return $c }
+    } catch {}
+  }
+  throw 'Python not found. Install Python 3 and ensure it is in PATH.'
+}
 
 # Env-based overrides for Mode/Model when caller uses defaults
 if ((-not $PSBoundParameters.ContainsKey('Mode')) -and $env:PROMPTOPT_MODE -and -not [string]::IsNullOrWhiteSpace($env:PROMPTOPT_MODE)) {
@@ -46,6 +61,20 @@ if ((-not $PSBoundParameters.ContainsKey('Profile')) -and $env:PROMPTOPT_PROFILE
 if ([string]::IsNullOrWhiteSpace($Profile)) { $Profile = 'browser' }
 Write-Log "Profile=$Profile"
 
+# PreciseEdit: prefer explicit param, then env
+if ((-not $PSBoundParameters.ContainsKey('PreciseEdit')) -and $env:PROMPTOPT_PRECISE -and ($env:PROMPTOPT_PRECISE -eq '1')) {
+  $PreciseEdit = $true
+  Write-Log "PreciseEdit overridden from PROMPTOPT_PRECISE: $PreciseEdit"
+}
+Write-Log "PreciseEdit=$PreciseEdit"
+
+# AgentMode: prefer explicit param, then env
+if ((-not $PSBoundParameters.ContainsKey('AgentMode')) -and $env:PROMPTOPT_AGENT_MODE -and ($env:PROMPTOPT_AGENT_MODE -eq '1')) {
+  $AgentMode = $true
+  Write-Log "AgentMode overridden from PROMPTOPT_AGENT_MODE: $AgentMode"
+}
+Write-Log "AgentMode=$AgentMode"
+
 # ------- Load .env into the process environment -------
 function Import-DotEnv([string]$path) {
   try {
@@ -59,9 +88,8 @@ function Import-DotEnv([string]$path) {
       if ($kv.Count -lt 2) { return }
       $k = $kv[0].Trim()
       $v = $kv[1].Trim()
-      if ($v -match '^\s*"(.*)"\s*$') { $v = $Matches[1] }  # strip double quotes
-      elseif ($v -match "^\s*'(.*)'\s*$") { $v = $Matches[1] } # strip single quotes
-      # Additional trim to remove any remaining whitespace (important for API keys)
+      if ($v -match '^\s*"(.*)"\s*$') { $v = $Matches[1] }
+      elseif ($v -match "^\s*'(.*)'\s*$") { $v = $Matches[1] }
       $v = $v.Trim()
       if (-not [string]::IsNullOrWhiteSpace($k)) {
         [System.Environment]::SetEnvironmentVariable($k, $v, 'Process')
@@ -75,11 +103,10 @@ Import-DotEnv $dotenv1
 if ($PSScriptRoot -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot '.env'))) {
   Import-DotEnv (Join-Path $PSScriptRoot '.env')
 }
+$dotenvRepoRoot = Join-Path (Split-Path -Parent $MetaPromptDir) '.env'
+Import-DotEnv $dotenvRepoRoot
 
 # Allow OPENAI_BASE_URL env to override BaseUrl.
-# Template.ahk always passes the default 'https://openrouter.ai/api/v1', which prevents
-# env overrides from taking effect. To be user-friendly, if BaseUrl equals the default
-# and OPENAI_BASE_URL is set, prefer the env value.
 $defaultBase = 'https://openrouter.ai/api/v1'
 if ($env:OPENAI_BASE_URL -and -not [string]::IsNullOrWhiteSpace($env:OPENAI_BASE_URL)) {
   if ((-not $PSBoundParameters.ContainsKey('BaseUrl')) -or ($BaseUrl -eq $defaultBase)) {
@@ -93,11 +120,72 @@ if (-not (Test-Path -LiteralPath $SelectionFile)) {
   throw "Selection file not found: $SelectionFile"
 }
 
+$effectiveSelectionFile = $SelectionFile
+$effectiveSelectionFileCreated = $false
+
 $userText = Get-Content -LiteralPath $SelectionFile -Raw -Encoding UTF8
+
+# Optional legacy single-file targeting (Insano Mode)
 if ($ContextFilePath -and -not [string]::IsNullOrWhiteSpace($ContextFilePath)) {
-    Write-Log "Appending context file path: $ContextFilePath"
-    $userText = "Target File: $ContextFilePath`n`n" + $userText
+  Write-Log "Appending context file path: $ContextFilePath"
+  $userText = "Target File: $ContextFilePath`n`n" + $userText
 }
+
+# Context Scout: build and append a context bundle
+if ($ContextDir -and -not [string]::IsNullOrWhiteSpace($ContextDir) -and $ContextQuery -and -not [string]::IsNullOrWhiteSpace($ContextQuery)) {
+  try {
+    $repoRoot = $ContextDir
+    if (-not (Test-Path -LiteralPath $repoRoot)) {
+      Write-Log "WARN: ContextDir not found: $repoRoot"
+    } else {
+      $ctxOut = Join-Path $env:TEMP ("promptopt_ctx_{0}.txt" -f ([DateTime]::UtcNow.Ticks))
+      $toolScript = Join-Path (Split-Path -Parent $PSScriptRoot) "tools\context_grepper.py"
+      if (-not (Test-Path -LiteralPath $toolScript)) {
+        $toolScript = Join-Path (Split-Path -Parent $MetaPromptDir) "tools\context_grepper.py"
+      }
+
+      if (Test-Path -LiteralPath $toolScript) {
+        $pythonForCtx = Get-Python
+        Write-Log "Context Scout: Python exe: $pythonForCtx"
+        Write-Log "Context Scout: tool script: $toolScript"
+        $ctxArgs = @(
+          $toolScript,
+          '--repo-root', $repoRoot,
+          '--query', $ContextQuery,
+          '--output-file', $ctxOut
+        )
+
+        $oldEap2 = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $ctxLog = & $pythonForCtx $ctxArgs 2>&1
+        $ErrorActionPreference = $oldEap2
+        if ($ctxLog) { $ctxLog | ForEach-Object { Write-Log ("ctx: " + $_) } }
+        Write-Log ("Context Scout exit code=" + $LASTEXITCODE)
+
+        if ((Test-Path -LiteralPath $ctxOut) -and ((Get-Item -LiteralPath $ctxOut).Length -gt 0)) {
+          $ctxContent = Get-Content -LiteralPath $ctxOut -Raw -Encoding UTF8
+          if (-not [string]::IsNullOrWhiteSpace($ctxContent)) {
+            Write-Log ("Context bundle length=" + $ctxContent.Length)
+            $userText = $userText + "`n`n---`n`n# Context`n" + $ctxContent
+          }
+        } else {
+          Write-Log "WARN: Context bundle not produced or empty."
+        }
+      } else {
+        Write-Log "WARN: Context Scout tool script not found."
+      }
+    }
+  } catch {
+    Write-Log ("WARN: Context Scout failed: " + $_)
+  }
+}
+
+if ($userText -and ($userText.Length -gt 0)) {
+  $effectiveSelectionFile = Join-Path $env:TEMP ("promptopt_sel_effective_{0}.txt" -f ([DateTime]::UtcNow.Ticks))
+  Set-Content -LiteralPath $effectiveSelectionFile -Encoding UTF8 -NoNewline -Value $userText
+  $effectiveSelectionFileCreated = $true
+}
+
 Write-Log ("Selection length=" + ($userText.Length))
 
 function Get-MetaPrompt([string]$path) {
@@ -148,12 +236,36 @@ if ([string]::IsNullOrWhiteSpace($sysPrompt)) {
 }
 Write-Log ("System prompt length=" + ($sysPrompt.Length))
 
+# ------- Precise Edit Mode Wrapper -------
+if ($PreciseEdit) {
+  Write-Log "PreciseEdit mode enabled - wrapping system prompt for minimal edits"
+  $preciseWrapper = @"
+You are in PRECISE EDIT MODE. Your goal is to make minimal, targeted improvements to the input text while preserving as much of the original structure, wording, and formatting as possible.
+
+RULES:
+1. Make ONLY the changes necessary to improve clarity, correctness, or effectiveness
+2. Preserve the original author's voice, style, and word choices where possible
+3. Do NOT rewrite entire sections unless absolutely necessary
+4. Do NOT add significant new content unless the input is clearly incomplete
+5. Do NOT remove content unless it's clearly redundant or incorrect
+6. Maintain the same overall structure and organization
+
+UNDERLYING OPTIMIZATION GUIDELINES:
+$sysPrompt
+
+OUTPUT FORMAT:
+- Return only the edited text with minimal changes applied
+- Do NOT explain what changes you made
+- Do NOT include any preamble or commentary
+"@
+  $sysPrompt = $preciseWrapper
+  Write-Log ("Wrapped system prompt length=" + ($sysPrompt.Length))
+}
+
 $sysFile = Join-Path $env:TEMP ("promptopt_sys_{0}.txt" -f ([DateTime]::UtcNow.Ticks))
 Set-Content -LiteralPath $sysFile -Encoding UTF8 -NoNewline -Value $sysPrompt
 
 # ------- Optional dry-run (offline) path -------
-# If PROMPTOPT_DRYRUN is set (e.g., to "1"), bypass network and write
-# a locally synthesized prompt so the end-to-end flow remains usable.
 if ($env:PROMPTOPT_DRYRUN -and $env:PROMPTOPT_DRYRUN.Trim()) {
   Write-Log "PROMPTOPT_DRYRUN is set; generating offline output."
   $offline = @()
@@ -184,23 +296,13 @@ if ($env:PROMPTOPT_DRYRUN -and $env:PROMPTOPT_DRYRUN.Trim()) {
     if ($CopyToClipboard) { $txt | Set-Clipboard }
     Write-Log "Offline output written via dry-run."
     try { Remove-Item -LiteralPath $sysFile -Force } catch {}
+    if ($effectiveSelectionFileCreated) { try { Remove-Item -LiteralPath $effectiveSelectionFile -Force } catch {} }
     Write-Log "--- PromptOpt done (dry-run) ---"
     exit 0
   } catch {
     Write-Log ("ERROR: Dry-run write failed: " + $_)
     throw
   }
-}
-
-function Get-Python() {
-  $candidates = @('py','python','python3')
-  foreach ($c in $candidates) {
-    try {
-      $ver = & $c -c "import sys; print(sys.version_info[0])" 2>$null
-      if ($LASTEXITCODE -eq 0 -and $ver) { return $c }
-    } catch {}
-  }
-  throw 'Python not found. Install Python 3 and ensure it is in PATH.'
 }
 
 $python = Get-Python
@@ -215,14 +317,11 @@ if (-not $ApiKey -or [string]::IsNullOrWhiteSpace($ApiKey)) {
   $ApiKey = $env:PROMPTOPT_API_KEY
 }
 if (-not $ApiKey -or [string]::IsNullOrWhiteSpace($ApiKey)) {
-  # Prefer OPENAI_API_KEY by default
   $ApiKey = $env:OPENAI_API_KEY
 }
-# If targeting OpenRouter and an OPENROUTER_API_KEY exists, prefer it
 if (($BaseUrl -like '*openrouter.ai*') -and $env:OPENROUTER_API_KEY -and -not [string]::IsNullOrWhiteSpace($env:OPENROUTER_API_KEY)) {
   $ApiKey = $env:OPENROUTER_API_KEY
   Write-Log 'Using OPENROUTER_API_KEY due to BaseUrl openrouter.ai'
-  # Log key prefix for debugging (without exposing full key)
   if ($ApiKey -and $ApiKey.Length -gt 4) {
     Write-Log ("API key prefix: " + $ApiKey.Substring(0, [Math]::Min(7, $ApiKey.Length)) + "... (length: " + $ApiKey.Length + ")")
   } else {
@@ -230,7 +329,6 @@ if (($BaseUrl -like '*openrouter.ai*') -and $env:OPENROUTER_API_KEY -and -not [s
   }
 }
 
-# Auto-align provider to key style if mismatched
 try {
   $isOpenRouterBase = ($BaseUrl -like '*openrouter.ai*')
   $keyLooksOpenRouter = ($ApiKey -and ($ApiKey -like 'sk-or-*'))
@@ -253,7 +351,6 @@ if (-not $ApiKey -or [string]::IsNullOrWhiteSpace($ApiKey)) {
   throw 'API key not provided. Set PROMPTOPT_API_KEY or OPENAI_API_KEY.'
 }
 
-# Validate API key format
 if ($ApiKey.Length -lt 10) {
   Write-Log "WARN: API key appears too short (length: $($ApiKey.Length))"
 }
@@ -261,30 +358,31 @@ if ($ApiKey.Length -lt 10) {
 $argsList = @(
   $pyPath,
   '--system-prompt-file', $sysFile,
-  '--user-input-file', $SelectionFile,
+  '--user-input-file', $effectiveSelectionFile,
   '--output-file', $OutputFile,
   '--model', $Model,
   '--base-url', $BaseUrl
 )
 
-# Pass key via environment to avoid command-line exposure
 $env:PROMPTOPT_API_KEY = $ApiKey
-# Verify it was set correctly
 if (-not $env:PROMPTOPT_API_KEY -or [string]::IsNullOrWhiteSpace($env:PROMPTOPT_API_KEY)) {
   Write-Log 'ERROR: Failed to set PROMPTOPT_API_KEY environment variable'
   throw 'Failed to set PROMPTOPT_API_KEY environment variable'
 }
 
-# Enable Python streaming when requested via env flag
 if ($env:PROMPTOPT_STREAM -and $env:PROMPTOPT_STREAM.Trim()) {
   $argsList += @('--stream')
   Write-Log 'Streaming enabled via PROMPTOPT_STREAM.'
 }
 
+if ($AgentMode) {
+  $argsList += @('--agent-mode')
+  Write-Log 'Agent Mode enabled.'
+}
+
 Write-Log "Invoking Python backend..."
 $cmdline = ($argsList | ForEach-Object { '"' + ($_ -replace '"','\"') + '"' }) -join ' '
 Write-Log ("Python cmd: " + $python + ' ' + $cmdline)
-# Avoid terminating errors from native stderr by lowering EAP during call
 $env:PYTHONUTF8 = "1"
 $env:PYTHONUNBUFFERED = "1"
 $oldEap = $ErrorActionPreference
@@ -309,4 +407,5 @@ try {
 } catch { Write-Log ("WARN: Failed to read output file: " + $_) }
 
 try { Remove-Item -LiteralPath $sysFile -Force } catch {}
+if ($effectiveSelectionFileCreated) { try { Remove-Item -LiteralPath $effectiveSelectionFile -Force } catch {} }
 Write-Log "--- PromptOpt done ---"

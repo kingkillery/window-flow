@@ -183,11 +183,29 @@ LaunchPromptOpt(userText, profile) {
         return
     }
 
+    skipPickers := true
+    autoSelect := LoadAutoSelect()
+    forcePicker := EnvGet("PROMPTOPT_CONTEXT_FORCE_PICKER")
+    forceSkip := EnvGet("PROMPTOPT_CONTEXT_SKIP_PICKERS")
+    if (forcePicker = "1") {
+        skipPickers := false
+    } else if (forceSkip = "1") {
+        skipPickers := true
+    } else {
+        skipPickers := autoSelect
+    }
+
     ; Build command with arguments
     ; --file: read from file instead of clipboard
     ; --profile: pre-select profile
     ; --skip-pickers: use provided profile/model without showing pickers (faster workflow)
-    cmd := QQ(promptoptPath) " --file " QQ(tmpSel) " --profile " QQ(profile) " --skip-pickers"
+    cmd := QQ(promptoptPath) " --file " QQ(tmpSel)
+    if (profile != "") {
+        cmd .= " --profile " QQ(profile)
+    }
+    if (skipPickers) {
+        cmd .= " --skip-pickers"
+    }
 
     ; Launch main script (it will handle everything: API calls, streaming, result window, etc.)
     ; Use Run instead of RunWait so context menu script can exit immediately
@@ -242,6 +260,9 @@ ShowSettingsGui() {
 
     autoSelectCheck := settingsGui.Add("CheckBox", "vAutoSelect", "Don't ask for profile selection (use default)")
     autoSelectCheck.Value := LoadAutoSelect() ? 1 : 0
+    settingsGui.SetFont("s8 c808080", "Segoe UI")
+    settingsGui.Add("Text", , "When enabled, context menu launches skip the PromptOpt dashboard.")
+    settingsGui.SetFont("s10", "Segoe UI")
 
     settingsGui.Add("Text", "w600", "")
 
