@@ -137,4 +137,10 @@ par/uv.lock
 crystal/screenshot/
 crystal/playwright-report/
 crystal/test-results/
-.gitignore
+
+# Local workspace state
+.claude/settings.local.json
+settings*.ini
+bin/
+src/**/bin/
+src/**/obj/
