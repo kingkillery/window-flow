@@ -6,9 +6,9 @@
 ; Quick path-sharing of images with coding agents.
 ;
 ; Hotkeys:
-;   Alt+S             -> save clipboard image to ~\Pictures\
+;   Alt+S             -> copy newest screenshot path to clipboard
+;   Ctrl+Alt+S        -> save clipboard image to ~\Pictures\
 ;                        clipboard-save and copy its path
-;   Ctrl+Alt+S        -> copy newest screenshot path to clipboard
 ;   Ctrl+Alt+Shift+S  -> copy newest screenshot path AND reveal it
 ;                        in Explorer
 ;
@@ -31,9 +31,9 @@ global SIDECAR_FILE := A_Temp "\latest-screenshot-path.txt"
 global SCREENSHOT_EXTS := ["png", "jpg", "jpeg", "bmp", "gif", "webp"]
 
 ; --- Hotkeys ---
-^!s::CopyLatestScreenshotPath(false)
+!s::CopyLatestScreenshotPath(false)
 ^!+s::CopyLatestScreenshotPath(true)
-!s::SaveClipboardImageToPath()
+^!s::SaveClipboardImageToPath()
 
 ; Saves the image currently on the clipboard to a PNG file under
 ; ~\Pictures\clipboard-save, then replaces the clipboard with that
