@@ -41,32 +41,30 @@ global SCREENSHOT_EXTS := ["png", "jpg", "jpeg", "bmp", "gif", "webp"]
 SaveClipboardImageToPath() {
     psScript := A_ScriptDir "\save-clipboard-image.ps1"
     if !FileExist(psScript) {
-        TrayTip("Clipboard Image", "Helper script not found:`n" psScript, 3)
+        ShowImgFeedback("Helper script not found:`n" psScript)
         return
     }
 
     outFile := A_Temp "\clipboard-image-path.txt"
     try FileDelete(outFile)
 
-    cmd := A_ComSpec ' /c powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File "'
-        . psScript '" > "' outFile '" 2>nul'
+    ; Launch PowerShell directly (no cmd /c, no stdout redirection).
+    ; The script writes the saved path to -OutFile, which we read back.
+    cmd := 'powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File "'
+        . psScript '" -OutFile "' outFile '"'
     exitCode := RunWait(cmd, , "Hide")
 
-    if (exitCode != 0) {
-        TrayTip("Clipboard Image", "No image on the clipboard.", 2)
-        return
-    }
-
     path := ""
-    try path := Trim(FileRead(outFile, "UTF-8"), " `t`r`n")
-    if (path = "" || !FileExist(path)) {
-        TrayTip("Clipboard Image", "Failed to save clipboard image.", 3)
+    try path := Trim(FileRead(outFile, "UTF-8"), " `t`r`n" Chr(0xFEFF))
+
+    if (exitCode != 0 || path = "" || !FileExist(path)) {
+        ShowImgFeedback("No image on the clipboard (or save failed).")
         return
     }
 
     A_Clipboard := path
     if !ClipWait(1) {
-        TrayTip("Clipboard Image", "Saved, but failed to set clipboard:`n" path, 3)
+        ShowImgFeedback("Saved, but clipboard set failed:`n" path)
         return
     }
 
@@ -74,7 +72,16 @@ SaveClipboardImageToPath() {
     try FileDelete(SIDECAR_FILE)
     try FileAppend(path, SIDECAR_FILE, "UTF-8")
 
-    TrayTip("Clipboard Image Saved", path, 1)
+    ShowImgFeedback("Path copied:`n" path)
+}
+
+; Visible feedback that does not depend on Windows toast notifications
+; (which may be silenced by Focus Assist). Shows a brief ToolTip near
+; the cursor and falls back to TrayTip.
+ShowImgFeedback(msg) {
+    ToolTip(msg)
+    SetTimer(() => ToolTip(), -1800)
+    try TrayTip("Clipboard Image", msg, 1)
 }
 
 CopyLatestScreenshotPath(revealInExplorer) {

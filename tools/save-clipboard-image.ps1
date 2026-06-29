@@ -1,12 +1,16 @@
 # save-clipboard-image.ps1
-# Saves the image currently on the Windows clipboard to a PNG file and
-# prints the full file path to stdout. Exits non-zero with a message on
-# stderr if the clipboard holds no image.
+# Saves the image currently on the Windows clipboard to a PNG file.
+# Prints the full file path to stdout AND, if -OutFile is given, writes
+# the path there (more robust than stdout redirection when launched
+# from AutoHotkey). Exits 1 if the clipboard holds no image.
 #
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File save-clipboard-image.ps1 [-OutDir <dir>]
+# Usage:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File save-clipboard-image.ps1 `
+#       [-OutDir <dir>] [-OutFile <path>]
 
 param(
-    [string]$OutDir = "$env:USERPROFILE\Pictures\clipboard-save"
+    [string]$OutDir = "$env:USERPROFILE\Pictures\clipboard-save",
+    [string]$OutFile = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,5 +41,9 @@ while (Test-Path -LiteralPath $path) {
 $img.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
 $img.Dispose()
 
-# Emit the path (no trailing newline noise beyond Write-Output's).
+# Write the path to -OutFile (robust for AHK), and also to stdout.
+if ($OutFile -ne "") {
+    # UTF8 without BOM so AHK reads a clean path.
+    [System.IO.File]::WriteAllText($OutFile, $path, (New-Object System.Text.UTF8Encoding($false)))
+}
 Write-Output $path
