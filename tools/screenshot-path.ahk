@@ -105,6 +105,9 @@ CopyLatestScreenshotPath(revealInExplorer, paste := false) {
         Run('explorer.exe /select,"' path '"')
 
     if (paste) {
+        ; Alt from Alt+S may still be held; release modifiers first so
+        ; ^v doesn't become Alt+Ctrl+V (which won't paste).
+        Send("{Alt up}{Ctrl up}{Shift up}")
         Sleep(60)               ; let the clipboard settle
         SendInput("^v")
     }
