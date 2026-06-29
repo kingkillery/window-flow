@@ -6,7 +6,7 @@
 ; Quick path-sharing of images with coding agents.
 ;
 ; Hotkeys:
-;   Alt+S             -> copy newest screenshot path to clipboard
+;   Alt+S             -> copy newest screenshot path AND paste it
 ;   Ctrl+Alt+S        -> save clipboard image to ~\Pictures\
 ;                        clipboard-save and copy its path
 ;   Ctrl+Alt+Shift+S  -> copy newest screenshot path AND reveal it
@@ -31,7 +31,7 @@ global SIDECAR_FILE := A_Temp "\latest-screenshot-path.txt"
 global SCREENSHOT_EXTS := ["png", "jpg", "jpeg", "bmp", "gif", "webp"]
 
 ; --- Hotkeys ---
-!s::CopyLatestScreenshotPath(false)
+!s::CopyLatestScreenshotPath(false, true)
 ^!+s::CopyLatestScreenshotPath(true)
 ^!s::SaveClipboardImageToPath()
 
@@ -84,7 +84,7 @@ ShowImgFeedback(msg) {
     try TrayTip("Clipboard Image", msg, 1)
 }
 
-CopyLatestScreenshotPath(revealInExplorer) {
+CopyLatestScreenshotPath(revealInExplorer, paste := false) {
     path := FindLatestScreenshot()
     if (path = "") {
         TrayTip("Screenshot Path", "No screenshots found in any known folder.", 1)
@@ -103,6 +103,11 @@ CopyLatestScreenshotPath(revealInExplorer) {
 
     if (revealInExplorer)
         Run('explorer.exe /select,"' path '"')
+
+    if (paste) {
+        Sleep(60)               ; let the clipboard settle
+        SendInput("^v")
+    }
 
     TrayTip("Screenshot Path Copied", path, 1)
 }
